@@ -109,6 +109,55 @@ test('managers: WaveManager — волна, спавн, задержка, бос
   assert.equal(waves.currentBoss, null, 'босс сброшен');
 });
 
+test('managers: BuildSystem — кандидаты выбора по экранной близости', () => {
+  const { cave, perches, state, effects, particles, hud, panel } = makeGameParts();
+  const build = new BuildSystem(state, effects, fakeSfx, particles, hud, panel, camera, true); // isTouch
+  build.setScene(cave.scene);
+  state.essence = 1000;
+
+  // Две башни на соседних насестах
+  const p1 = perches.find(p => !p.occupied);
+  const p2 = perches.find(p => !p.occupied && p !== p1);
+  const t1 = build.buildTower('screamer', p1, cave.scene);
+  const t2 = build.buildTower('frost', p2, cave.scene);
+  assert.ok(t1 && t2, 'обе башни построены');
+  const towers = [t1, t2];
+
+  // Настоящая камера для проекции на экран
+  const cam = new THREE.PerspectiveCamera(50, 4 / 3, 0.1, 120);
+  cam.position.set(0, 9, 14);
+  cam.lookAt(0, 0, 0);
+  cam.updateProjectionMatrix();
+  cam.updateMatrixWorld(true);
+  const rc = new THREE.Raycaster();
+  // патчим ссылку на камеру в BuildSystem (в makeGameParts передаётся stub)
+  build.camera = cam;
+
+  // Экранные центры обеих башен
+  const toScreen = (pos) => {
+    const v = new THREE.Vector3(pos.x, pos.y + 0.9, pos.z).project(cam);
+    return { x: (v.x + 1) * 0.5 * window.innerWidth, y: (1 - v.y) * 0.5 * window.innerHeight };
+  };
+  const s1 = toScreen(t1.pos);
+  const s2 = toScreen(t2.pos);
+
+  // Тап точно по первой башне → кандидат №1 — она сама
+  let cands = build.raycastTowerCandidates(s1.x, s1.y, towers, rc);
+  assert.equal(cands[0], t1, 'тап по центру башни 1 → она первая');
+  assert.ok(cands.includes(t2), 'соседняя башня в кандидатах (можно переключиться)');
+
+  // Тап между башнями → обе в кандидатах, ближайшая — первая
+  cands = build.raycastTowerCandidates((s1.x + s2.x) / 2, (s1.y + s2.y) / 2, towers, rc);
+  assert.equal(cands.length, 2, 'обе башни в окне кандидатов');
+  const d1 = Math.hypot(cands[0].pos.x - ((t1.pos.x + t2.pos.x) / 2), cands[0].pos.z - ((t1.pos.z + t2.pos.z) / 2));
+  const d2 = Math.hypot(cands[1].pos.x - ((t1.pos.x + t2.pos.x) / 2), cands[1].pos.z - ((t1.pos.z + t2.pos.z) / 2));
+  assert.ok(d1 <= d2, 'первый кандидат — ближайшая к тапу башня');
+
+  // Тап далеко от обеих → кандидатов нет
+  cands = build.raycastTowerCandidates(10, 10, towers, rc);
+  assert.equal(cands.length, 0, 'далёкий тап не выбирает башню');
+});
+
 test('managers: CameraController — тап, драг, пинч', () => {
   const { camera } = makeGameParts();
   const cc = new CameraController(camera, {});

@@ -410,7 +410,10 @@ export class BuildSystem {
     const v = new THREE.Vector3();
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const thresh = this.isTouch ? 64 : 46;
+    // Порог щедрый: палец на телефоне закрывает башню, а тап смещается на
+    // 40-80px. Чем шире окно кандидатов, тем надёжнее циклический перебор
+    // добирается до нужной башни в плотной застройке.
+    const thresh = this.isTouch ? 88 : 50;
     const thresh2 = thresh * thresh;
     const out = [];
     for (const t of towers) {

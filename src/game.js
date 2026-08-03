@@ -486,22 +486,34 @@ export class Game {
     const cands = this.build.raycastTowerCandidates(x, y, this.towers, this.raycaster);
     if (cands.length) {
       // По умолчанию — ближайшая к тапу башня (главный критерий выбора).
-      // Циклический перебор срабатывает при повторном тапе в том же месте
-      // (в пределах ~56px и 3 с): переключает на следующую башню из группы.
-      const sameSpot = this.lastPick &&
-        Math.hypot(x - this.lastPick.x, y - this.lastPick.y) < 56 &&
-        performance.now() - this.lastPick.t < 3000;
+      // Повторный тап, когда ранее выбранная башня всё ещё в кандидатах и
+      // не прошло 3 с, переключает на следующую из группы. Так до любой
+      // башни в плотной застройке добираешься повторными тапами, даже если
+      // палец между тапами слегка сместился (координатная привязка тут
+      // ненадёжна — тап "дрейфует" на 40-80px).
       let t = cands[0];
-      if (sameSpot && this.build.selectedTower && cands.includes(this.build.selectedTower)) {
-        const i = cands.indexOf(this.build.selectedTower);
-        t = cands[(i + 1) % cands.length];
+      const now = performance.now();
+      const prev = this.lastPick;
+      // Объединяем прошлый и текущий набор кандидатов, сохраняя порядок
+      // прошлого: при дрейфе пальца состав кандидатов меняется, но
+      // циклический перебор продолжается в стабильном порядке.
+      let pool = cands;
+      if (prev && prev.tower === this.build.selectedTower && now - prev.t < 3000) {
+        const merged = [];
+        for (const c of prev.cands) if (c.alive && !merged.includes(c)) merged.push(c);
+        for (const c of cands) if (!merged.includes(c)) merged.push(c);
+        pool = merged;
+        const i = pool.indexOf(prev.tower);
+        if (i !== -1 && pool.length > 1) {
+          t = pool[(i + 1) % pool.length];
+        }
       }
-      this.lastPick = { x, y, t: performance.now() };
+      this.lastPick = { t: now, tower: t, cands: pool };
       this.selectTower(t);
       // если в точке несколько башен — показать, что можно переключать
-      if (cands.length > 1) {
-        const idx = cands.indexOf(t) + 1;
-        this.hud?.showToast(`${TOWER_TYPES[t.typeId].name} (${idx}/${cands.length})`, '#aac6ff');
+      if (pool.length > 1) {
+        const idx = pool.indexOf(t) + 1;
+        this.hud?.showToast(`${TOWER_TYPES[t.typeId].name} (${idx}/${pool.length})`, '#aac6ff');
       }
     } else {
       this.lastPick = null;
