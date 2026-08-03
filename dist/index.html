@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>3D-BAT — Защита пещеры</title>
+  <style>
+    :root {
+      --accent: #66e0ff;
+      --gold: #ffe9a0;
+      --danger: #ff5566;
+      --panel: rgba(12, 10, 26, 0.82);
+      --panel-border: rgba(102, 224, 255, 0.25);
+      --text: #e8e6f5;
+      --muted: #9a97b8;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #07040f; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    #app canvas { display: block; }
+    #app { position: fixed; inset: 0; }
+    /* лёгкая виньетка поверх 3D для глубины */
+    body::after {
+      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 5;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(2, 1, 8, 0.55) 100%);
+    }
+
+    /* ---------- HUD ---------- */
+    #hud {
+      position: fixed; top: 0; left: 0; right: 0;
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 14px 18px; pointer-events: none; z-index: 20;
+      flex-wrap: wrap;
+    }
+    .hud-box {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 8px 14px;
+      backdrop-filter: blur(6px);
+      font-size: 14px;
+      line-height: 1.35;
+      pointer-events: auto;
+    }
+    .hud-box .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+    #hud-essence { font-size: 19px; font-weight: 700; color: var(--gold); }
+    #hud-wave { font-size: 15px; font-weight: 600; }
+    #hp-wrap { min-width: 130px; }
+    #hud-hp-track {
+      height: 9px; border-radius: 5px; background: rgba(255,255,255,0.12);
+      overflow: hidden; margin-top: 4px;
+    }
+    #hud-hp-fill {
+      height: 100%; width: 100%; border-radius: 5px;
+      background: linear-gradient(90deg, #37e0a0, #8ff0c8);
+      transition: width 0.25s ease;
+    }
+    #hud-hp-fill.low { background: linear-gradient(90deg, #ff4455, #ff8899); }
+    #hud-hp-text { font-size: 12px; color: var(--muted); }
+    #hud-combo {
+      display: none; font-weight: 800; font-size: 18px; color: #ffd94a;
+      text-shadow: 0 0 12px rgba(255, 217, 74, 0.6);
+      animation: pulse 0.4s ease;
+    }
+    #hud-combo.show { display: block; }
+    #hud-moon { display: none; font-weight: 600; font-size: 14px; }
+    #hud-moon.show { display: block; }
+    #hud-level { font-size: 13px; color: var(--accent); font-weight: 600; }
+    #hud-wave-preview { font-size: 12px; color: var(--muted); margin-top: 2px; letter-spacing: 1px; }
+    #hud-essence.bump { animation: essenceBump 0.25s ease; }
+    @keyframes essenceBump { 0% { transform: scale(1.25); } 100% { transform: scale(1); } }
+    #hud-buttons { display: flex; gap: 6px; margin-left: auto; }
+    #btn-next {
+      background: rgba(255, 217, 74, 0.12); border: 1px solid rgba(255, 217, 74, 0.4);
+      color: var(--gold); border-radius: 10px; padding: 0 12px; height: 38px;
+      font-size: 13px; font-weight: 700; cursor: pointer; display: none;
+    }
+    #btn-next:hover { border-color: var(--gold); }
+    #hud-buttons button {
+      background: var(--panel); border: 1px solid var(--panel-border);
+      color: var(--text); border-radius: 10px; width: 44px; height: 38px;
+      font-size: 17px; cursor: pointer; transition: border-color 0.12s, background 0.12s;
+    }
+    #hud-buttons button:hover { border-color: var(--accent); }
+    #hud-buttons button.on { border-color: var(--gold); background: rgba(255, 217, 74, 0.12); }
+    #btn-speed { font-size: 14px; font-weight: 700; }
+
+    /* ---------- build bar ---------- */
+    #buildbar {
+      position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 8px; padding: 10px 14px;
+      background: var(--panel); border: 1px solid var(--panel-border);
+      border-radius: 16px; backdrop-filter: blur(8px); z-index: 20;
+      max-width: 96vw; overflow-x: auto;
+    }
+    .build-card {
+      width: 84px; flex: 0 0 auto;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 6px 4px 5px;
+      cursor: pointer; color: var(--text);
+      text-align: center; transition: transform 0.12s, border-color 0.12s, opacity 0.12s;
+    }
+    .build-card img { width: 52px; height: 52px; display: block; margin: 0 auto; }
+    .build-card .card-name { font-size: 11px; font-weight: 600; margin-top: 3px; }
+    .build-card .card-cost { font-size: 11px; color: var(--gold); }
+    .build-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+    .build-card.cant { opacity: 0.45; }
+    .build-card.selected { border-color: var(--gold); box-shadow: 0 0 12px rgba(255, 233, 160, 0.35); }
+
+    /* ---------- tower panel ---------- */
+    #towerpanel {
+      position: fixed; right: 16px; top: 50%; transform: translateY(-50%);
+      width: 250px; display: none; flex-direction: column; gap: 8px;
+      background: var(--panel); border: 1px solid var(--panel-border);
+      border-radius: 16px; padding: 16px; z-index: 30;
+      backdrop-filter: blur(8px);
+    }
+    #towerpanel.show { display: flex; }
+    #tp-head { display: flex; justify-content: space-between; align-items: center; }
+    #tp-title { font-size: 17px; font-weight: 800; }
+    #tp-close { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+    #tp-desc { font-size: 12px; color: var(--muted); line-height: 1.4; min-height: 32px; }
+    #tp-stats { font-size: 13px; line-height: 1.6; }
+    #tp-stats b { color: var(--accent); }
+    #towerpanel button {
+      background: rgba(102, 224, 255, 0.12);
+      border: 1px solid var(--panel-border); color: var(--text);
+      border-radius: 10px; padding: 9px 10px; font-size: 13px; font-weight: 600;
+      cursor: pointer;
+    }
+    #towerpanel button:hover:not(:disabled) { border-color: var(--accent); background: rgba(102, 224, 255, 0.2); }
+    #towerpanel button:disabled { opacity: 0.4; cursor: default; }
+    #tp-merge { background: rgba(255, 217, 74, 0.12); }
+    #tp-sell { background: rgba(255, 85, 102, 0.1); }
+
+    /* ---------- hints / banners ---------- */
+    #build-hint {
+      position: fixed; top: 74px; left: 50%; transform: translateX(-50%);
+      display: none; background: var(--panel); border: 1px solid var(--panel-border);
+      border-radius: 10px; padding: 8px 16px; font-size: 13px; z-index: 25;
+      backdrop-filter: blur(6px);
+    }
+    #build-hint.show { display: block; }
+
+    #fx-banner-wrap {
+      position: fixed; top: 26%; left: 50%; transform: translateX(-50%);
+      text-align: center; z-index: 40; pointer-events: none;
+      opacity: 0; transition: opacity 0.4s ease;
+    }
+    #fx-banner-wrap.show { opacity: 1; }
+    #fx-banner { font-size: 34px; font-weight: 900; text-shadow: 0 0 24px rgba(102, 224, 255, 0.5); }
+    #fx-banner-sub { font-size: 14px; color: var(--muted); margin-top: 4px; }
+
+    #bossbar {
+      position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
+      width: min(420px, 80vw); display: none; z-index: 20;
+      background: var(--panel); border: 1px solid rgba(255, 85, 102, 0.4);
+      border-radius: 10px; padding: 7px 12px;
+    }
+    #bossbar.show { display: block; }
+    #bossbar-name { font-size: 12px; font-weight: 700; color: #ff8899; margin-bottom: 4px; }
+    #bossbar-track { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.12); overflow: hidden; }
+    #bossbar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff4455, #ff99aa); transition: width 0.2s; }
+
+    #fx-flash {
+      position: fixed; inset: 0; background: rgba(255,60,60,0.35);
+      opacity: 0; pointer-events: none; z-index: 15; transition: none;
+    }
+    #fx-damage { position: fixed; inset: 0; pointer-events: none; z-index: 35; overflow: hidden; }
+    .dmg-num {
+      position: absolute; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+      transform: translate(-50%, -50%); will-change: transform;
+    }
+
+    /* ---------- тосты ---------- */
+    #toasts {
+      position: fixed; top: 96px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      z-index: 45; pointer-events: none;
+    }
+    .toast {
+      background: var(--panel); border: 1px solid var(--panel-border);
+      border-radius: 10px; padding: 8px 16px; font-size: 13px; font-weight: 600;
+      animation: toastIn 0.2s ease; max-width: 86vw; text-align: center;
+    }
+    .toast.out { opacity: 0; transition: opacity 0.35s; }
+    @keyframes toastIn { from { transform: translateY(-10px); opacity: 0; } }
+
+    .upgrade-btn {
+      background: rgba(255,255,255,0.06); border: 1px solid var(--panel-border);
+      border-radius: 12px; padding: 12px 18px; font-size: 14px; color: var(--text);
+      cursor: pointer; text-align: left; line-height: 1.45;
+    }
+    .upgrade-btn b { color: var(--gold); font-size: 15px; }
+    .upgrade-btn:hover { border-color: var(--gold); background: rgba(255, 217, 74, 0.08); }
+
+    /* ---------- overlays ---------- */
+    .overlay {
+      position: fixed; inset: 0; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      background: radial-gradient(ellipse at center, rgba(20, 12, 40, 0.88), rgba(5, 3, 12, 0.97));
+      z-index: 50; text-align: center; padding: 20px;
+    }
+    .overlay.show { display: flex; }
+    .overlay h1 {
+      font-size: 44px; letter-spacing: 2px; font-weight: 900;
+      background: linear-gradient(90deg, #66e0ff, #c56bff, #ff9a2a);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      text-shadow: none;
+    }
+    .overlay h2 { font-size: 30px; font-weight: 800; color: var(--danger); }
+    .overlay p { color: var(--muted); max-width: 480px; line-height: 1.55; font-size: 14px; }
+    .overlay .btn {
+      margin-top: 8px; padding: 14px 42px; font-size: 17px; font-weight: 800;
+      border-radius: 14px; border: none; cursor: pointer;
+      background: linear-gradient(90deg, #2a9acc, #7a5aff);
+      color: #fff; letter-spacing: 0.5px;
+      box-shadow: 0 4px 24px rgba(90, 120, 255, 0.35);
+      transition: transform 0.12s;
+    }
+    .overlay .btn:hover { transform: translateY(-2px); }
+    .overlay .btn.ghost {
+      background: rgba(255,255,255,0.06); border: 1px solid var(--panel-border);
+      box-shadow: none; color: var(--text); font-weight: 600; font-size: 14px;
+    }
+    .overlay .controls {
+      font-size: 12px; color: var(--muted); max-width: 520px; line-height: 1.7;
+    }
+    .overlay .controls b { color: var(--accent); font-weight: 600; }
+    .overlay .mech {
+      background: rgba(255,255,255,0.04); border: 1px solid var(--panel-border);
+      border-radius: 12px; padding: 10px 18px; font-size: 13px; color: #c8c4e8;
+      max-width: 520px; line-height: 1.6; text-align: left;
+    }
+    .overlay .mech b { color: var(--gold); }
+    .overlay .stats-row { display: flex; gap: 26px; font-size: 15px; }
+    .overlay .stats-row b { color: var(--accent); font-size: 22px; display: block; }
+
+    @keyframes pulse { 0% { transform: scale(1.4); } 100% { transform: scale(1); } }
+    @media (max-width: 720px) {
+      #buildbar {
+        bottom: 0; left: 0; right: 0; transform: none;
+        width: 100%; max-width: 100%; border-radius: 16px 16px 0 0;
+        padding: 10px 8px calc(10px + env(safe-area-inset-bottom));
+        justify-content: flex-start; overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .build-card { width: 78px; padding: 8px 4px 8px; border-radius: 12px; }
+      .build-card img { width: 48px; height: 48px; }
+      .build-card .card-name { font-size: 11px; }
+      .build-card .card-cost { font-size: 12px; }
+      #hud { padding: 10px; gap: 8px; }
+      #towerpanel {
+        right: 0; left: 0; top: auto; bottom: 0;
+        width: auto; transform: none;
+        border-radius: 18px 18px 0 0;
+        max-height: 48vh; overflow-y: auto;
+        padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+        box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+      }
+      #towerpanel button { padding: 12px 10px; font-size: 14px; }
+      #tp-stats { font-size: 14px; }
+      #bossbar { bottom: 92px; }
+      #fx-banner { font-size: 24px; }
+      .overlay h1 { font-size: 32px; }
+      #hud-buttons button { width: 42px; height: 40px; }
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/index-CakybBRk.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="hud">
+    <div class="hud-box" id="hud-essence">◆ 120</div>
+    <div class="hud-box" id="hp-wrap">
+      <div class="label">Кристалл</div>
+      <div id="hud-hp-track"><div id="hud-hp-fill"></div></div>
+      <div id="hud-hp-text">20/20</div>
+    </div>
+    <div class="hud-box"><div class="label">Уровень</div><div id="hud-level">Ур.1 · Преддверие</div></div>
+    <div class="hud-box"><div class="label">Волна</div><div id="hud-wave">Приготовьтесь…</div><div id="hud-wave-preview"></div></div>
+    <div class="hud-box" id="hud-moon"><span id="hud-moon-name"></span></div>
+    <div class="hud-box" id="hud-combo"></div>
+    <div class="hud-box" id="hud-buttons">
+      <button id="btn-next" title="Начать волну сейчас (N)">▶ Волну!</button>
+      <button id="btn-speed" title="Скорость (Q)">⏩ ×1</button>
+      <button id="btn-pause" title="Пауза (Пробел)">⏸</button>
+      <button id="btn-mute" title="Звук">🔊</button>
+    </div>
+  </div>
+
+  <div id="buildbar"></div>
+
+  <div id="towerpanel">
+    <div id="tp-head"><span id="tp-title"></span><button id="tp-close">✕</button></div>
+    <div id="tp-desc"></div>
+    <div id="tp-stats"></div>
+    <button id="tp-upgrade"></button>
+    <button id="tp-merge"></button>
+    <button id="tp-sell"></button>
+  </div>
+
+  <div id="build-hint"></div>
+
+  <div id="fx-banner-wrap"><div id="fx-banner"></div><div id="fx-banner-sub"></div></div>
+  <div id="bossbar"><div id="bossbar-name"></div><div id="bossbar-track"><div id="bossbar-fill"></div></div></div>
+  <div id="fx-flash"></div>
+  <div id="fx-damage"></div>
+
+  <div class="overlay" id="menu">
+    <h1>🦇 3D-BAT</h1>
+    <p>Тысячи ночных тварей рвутся к <b style="color:var(--gold)">Великому Кристаллу</b>. Пройди <b>3 уровня пещеры</b> (10 волн): ставь стражей-летучих мышей на насесты, собирай эссенцию, выбирай улучшения между уровнями — и выдержи боссов.</p>
+    <div class="mech">
+      <b>Ур.1 · Преддверие</b> — Визгун, Иней, Спора<br>
+      <b>Ур.2 · Зал эха</b> — + Эхо, Жар<br>
+      <b>Ур.3 · Сердце пещеры</b> — + Фонарь, Вампир<br>
+      <b>Между уровнями</b> — выбор усиления на всю кампанию (эссенция, кристалл, урон, скидки)<br>
+      <b>Слияние:</b> две башни 3★ одного типа сливаются в <b>Альфа-форму</b><br>
+      <b>Стая:</b> башни одного типа рядом дают +15% урона друг другу<br>
+      <b>Луна:</b> меняет правила каждой волны — следи за фазой!
+    </div>
+    <div id="menu-best" class="controls" style="color:var(--gold); font-weight:600;"></div>
+    <div class="controls">
+      <b>ЛКМ / тап</b> — стройка и выбор · <b>Колесо / щипок</b> — зум · <b>ПКМ / Esc</b> — отмена<br>
+      <b>Средняя кнопка / 2 пальца / WASD</b> — сдвиг уровня · <b>Тап 2 пальцами</b> — пауза<br>
+      <b>1–7</b> — выбрать башню · <b>Пробел</b> — пауза · <b>Q</b> — скорость · <b>N</b> — волна сейчас
+    </div>
+    <button class="btn" id="btn-start">Защитить пещеру</button>
+  </div>
+
+  <div class="overlay" id="gameover">
+    <h2>💀 Пещера пала…</h2>
+    <p>Великий Кристалл разбит. Ночные твари поглотили свет.</p>
+    <div class="stats-row">
+      <div>Уровень <b id="go-level">1</b></div>
+      <div>Волна <b id="go-wave">0</b></div>
+      <div>Убийств <b id="go-score">0</b></div>
+    </div>
+    <button class="btn" id="btn-restart">Попробовать снова</button>
+  </div>
+
+  <div class="overlay" id="levelup">
+    <h2>🗺️ Уровень пройден!</h2>
+    <p id="levelup-title">Выбери одно улучшение на всю кампанию:</p>
+    <div style="display:flex;flex-direction:column;gap:10px;width:min(440px,92vw);">
+      <button class="upgrade-btn" id="up-0"></button>
+      <button class="upgrade-btn" id="up-1"></button>
+      <button class="upgrade-btn" id="up-2"></button>
+    </div>
+  </div>
+
+  <div class="overlay" id="bonus">
+    <h2>🎁 Награда</h2>
+    <p id="bonus-wave"></p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+      <button class="btn ghost" id="bonus-gold">💰 +60 ◆ эссенции</button>
+      <button class="btn ghost" id="bonus-repair">💎 Починить Кристалл (+6)</button>
+      <button class="btn ghost" id="bonus-meteor">☄️ Метеорит: 150 урона всем</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="win">
+    <h1>🎉 Победа!</h1>
+    <p>Все 3 уровня отбиты. Кристалл сияет в ночи. Твари дрожат при одном имени твоих стражей.</p>
+    <div class="stats-row">
+      <div>Волна <b id="win-wave">10</b></div>
+      <div>Убийств <b id="win-score">0</b></div>
+    </div>
+    <button class="btn" id="btn-endless">Бесконечный режим</button>
+    <button class="btn ghost" id="btn-win-restart">Заново</button>
+  </div>
+
+  <div id="toasts"></div>
+
+</body>
+</html>
