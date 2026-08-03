@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
+import { Tower } from '../src/entities/tower.js';
 
 // --- заглушки браузерных API ---
 function makeCtx() {
@@ -34,6 +35,7 @@ const { buildPathVisual } = await import('../src/world/path.js');
 const { buildPerches } = await import('../src/world/perches.js');
 const { GameState } = await import('../src/core/state.js');
 const { TOWER_TYPES } = await import('../src/core/towers.js');
+const { Vec3 } = await import('../src/core/math.js');
 const { BuildSystem } = await import('../src/managers/buildSystem.js');
 const { WaveManager } = await import('../src/managers/waveManager.js');
 const { CameraController } = await import('../src/managers/cameraController.js');
@@ -134,6 +136,90 @@ test('managers: CameraController — тап, драг, пинч', () => {
   cc.handlePointerMove(ev(140, 100, { pointerId: 2 }));
   cc.handlePointerUp(ev(140, 100, { pointerId: 2 }));
   cc.handlePointerUp(ev(100, 100, { pointerId: 1 }));
+});
+
+test('managers: BuildSystem — выбор башни по экранной близости (не по перехваченному лучу)', () => {
+  const { scene } = makeGameParts();
+  const mkPerch = (x, z) => ({
+    def: { pos: { x, y: 0, z } },
+    occupied: false,
+    tower: null,
+    setHighlight() {}, group: null,
+  });
+  const perches = [mkPerch(0, 0), mkPerch(3, 0), mkPerch(6, 0)];
+
+  // Строим настоящие башни (Tower из entities)
+  const realTowers = perches.map(p => new Tower('screamer', p, scene));
+
+  const camera = new THREE.PerspectiveCamera(50, 800 / 600, 0.1, 100);
+  camera.position.set(3, 6, 10);
+  camera.lookAt(3, 0, 0);
+  camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+
+  const state = new GameState();
+  const build = new BuildSystem(state, {}, {}, {}, {}, {}, camera, false);
+
+  // проекция центра каждой башни на экран (800×600)
+  const v = new THREE.Vector3();
+  const proj = realTowers.map(t => {
+    v.set(t.pos.x, t.pos.y + 0.9, t.pos.z).project(camera);
+    return { x: (v.x + 1) * 0.5 * 800, y: (1 - v.y) * 0.5 * 600 };
+  });
+
+  // тап в центр второй башни — первой выбирается она
+  const rc = new THREE.Raycaster();
+  let cands = build.raycastTowerCandidates(proj[1].x, proj[1].y, realTowers, rc);
+  assert.ok(cands.length >= 1, 'есть кандидаты');
+  assert.equal(cands[0], realTowers[1], 'ближайшая к тапу башня выбирается первой');
+
+  // тап в точку между первой и второй, ближе к первой
+  const mx = (proj[0].x + proj[1].x) / 2 - 5;
+  const my = (proj[0].y + proj[1].y) / 2;
+  cands = build.raycastTowerCandidates(mx, my, realTowers, rc);
+  assert.equal(cands[0], realTowers[0], 'ближайшая по экрану — первая из группы');
+
+  // hover тоже использует экранную близость
+  const hovered = build.raycastTower(proj[2].x, proj[2].y, realTowers, rc);
+  assert.equal(hovered, realTowers[2], 'hover выбирает ближайшую к курсору');
+});
+
+test('managers: BuildSystem — пикинг башен по экранной близости и кандидаты', () => {
+  // Настоящая камера three (работает в Node без рендера) + фейковые башни.
+  // Меши не нужны: кандидаты определяются проекцией центра на экран.
+  const { camera, state, effects, particles, hud, panel } = makeGameParts();
+  const build = new BuildSystem(state, effects, fakeSfx, particles, hud, panel, camera, false);
+  const T = (x, z, id = 'screamer') => ({ alive: true, pos: new Vec3(x, 0, z), typeId: id, mesh: null });
+
+  camera.position.set(0, 12, 16);
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld();
+
+  const towers = [T(-0.5, 0), T(0.5, 0), T(3, 0)];
+  // проекция центров в экранные координаты (окно 800x600)
+  const proj = (x, z) => {
+    const v = new THREE.Vector3(x, 0.9, z).project(camera);
+    return [(v.x + 1) * 0.5 * 800, (1 - v.y) * 0.5 * 600];
+  };
+  const [sx0, sy0] = proj(-0.5, 0);
+  const [sx1] = proj(0.5, 0);
+
+  // тап точно по центру первой башни — она ближайшая
+  const c1 = build.raycastTowerCandidates(sx0, sy0, towers, { setFromCamera() {}, intersectObjects: () => [] });
+  assert.ok(c1.includes(towers[0]), 'первая башня в кандидатах');
+  assert.equal(c1[0], towers[0], 'первая башня — ближайшая к тапу');
+
+  // тап между двумя близкими башнями — обе в кандидатах, порядок по близости
+  const mid = (sx0 + sx1) / 2;
+  const c2 = build.raycastTowerCandidates(mid, sy0, towers, { setFromCamera() {}, intersectObjects: () => [] });
+  assert.ok(c2.includes(towers[0]) && c2.includes(towers[1]), 'обе близкие башни в кандидатах');
+
+  // далёкая башня не попадает в порог (46px на десктопе)
+  const [sx2, sy2] = proj(3, 0);
+  const c3 = build.raycastTowerCandidates(sx2, sy2, towers, { setFromCamera() {}, intersectObjects: () => [] });
+  assert.ok(c3.includes(towers[2]), 'дальняя башня выбрана при тапе по ней');
+  assert.equal(c3.length, 1, 'другие башни вне порога');
 });
 
 test('managers: BuildSystem — выбор башни по близости к тапу, а не по мешам', () => {

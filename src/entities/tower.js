@@ -177,6 +177,7 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
       map: glowTexture(glow, '#ffffff'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.35,
     }));
     aura.scale.setScalar(1.9);
+    aura.userData.pickable = false; // декор — не перехватывать клики
     g.add(aura);
   }
 
@@ -218,13 +219,13 @@ export class Tower {
     this.shadow = new THREE.Sprite(new THREE.SpriteMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     this.shadow.scale.setScalar(0.9);
     this.shadow.position.y = -0.02;
+    this.shadow.userData.pickable = false; // декор — не перехватывать клики
     this.mesh.add(this.shadow);
-
-    // индикатор радиуса
     this.rangeRing = new THREE.Mesh(
       new THREE.CircleGeometry(1, 40),
       new THREE.MeshBasicMaterial({ color: 0x66e0ff, transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide })
     );
+    this.rangeRing.userData.pickable = false; // декор — не перехватывать клики
     this.rangeRing.rotation.x = -Math.PI / 2;
     this.rangeRing.position.y = 0.06;
     this.rangeRing.visible = false;
@@ -278,14 +279,16 @@ export class Tower {
     this.mesh.position.y += 0.35;
     this.scene.add(this.mesh);
     this.pips = this.mesh.userData.pips;
-    this.wingG = this.mesh.userData.wings;
-    // альфа-статы
-    this.stats = { damage: a.damage, rate: a.rate, range: a.range };
-    // кольцо радиуса и тень для новой модели
+    this.shadow = new THREE.Sprite(new THREE.SpriteMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+    this.shadow.scale.setScalar(0.9);
+    this.shadow.position.y = -0.02;
+    this.shadow.userData.pickable = false; // декор — не перехватывать клики
+    this.mesh.add(this.shadow);
     this.rangeRing = new THREE.Mesh(
       new THREE.CircleGeometry(1, 40),
       new THREE.MeshBasicMaterial({ color: 0x66e0ff, transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide })
     );
+    this.rangeRing.userData.pickable = false; // декор — не перехватывать клики
     this.rangeRing.rotation.x = -Math.PI / 2;
     this.rangeRing.position.y = 0.06;
     this.rangeRing.visible = false;

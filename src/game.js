@@ -86,7 +86,8 @@ export class Game {
 
     // менеджеры: строительство, камера, волны (hud/panel/particles подключаются позже)
     this.waves = new WaveManager(this.state, this.effects, this.sfx, null);
-    this.build = new BuildSystem(this.state, this.effects, this.sfx, null, null, null, this.camera);
+    this.build = new BuildSystem(this.state, this.effects, this.sfx, null, null, null, this.camera, this.isTouch);
+    this.lastPick = null; // последний тап по башне (для циклического перебора)
 
     // прогрессия кампании
     this.levelIndex = 0;
@@ -484,16 +485,26 @@ export class Game {
     }
     const cands = this.build.raycastTowerCandidates(x, y, this.towers, this.raycaster);
     if (cands.length) {
-      // По умолчанию — ближайшая к тапу. Если уже выбрана одна из группы —
-      // повторный тап циклически перебирает остальные (иначе плотные
-      // постройки невозможно выбрать).
+      // По умолчанию — ближайшая к тапу башня (главный критерий выбора).
+      // Циклический перебор срабатывает при повторном тапе в том же месте
+      // (в пределах ~56px и 3 с): переключает на следующую башню из группы.
+      const sameSpot = this.lastPick &&
+        Math.hypot(x - this.lastPick.x, y - this.lastPick.y) < 56 &&
+        performance.now() - this.lastPick.t < 3000;
       let t = cands[0];
-      if (this.build.selectedTower && cands.includes(this.build.selectedTower)) {
+      if (sameSpot && this.build.selectedTower && cands.includes(this.build.selectedTower)) {
         const i = cands.indexOf(this.build.selectedTower);
         t = cands[(i + 1) % cands.length];
       }
+      this.lastPick = { x, y, t: performance.now() };
       this.selectTower(t);
+      // если в точке несколько башен — показать, что можно переключать
+      if (cands.length > 1) {
+        const idx = cands.indexOf(t) + 1;
+        this.hud?.showToast(`${TOWER_TYPES[t.typeId].name} (${idx}/${cands.length})`, '#aac6ff');
+      }
     } else {
+      this.lastPick = null;
       this.deselectTower();
     }
   }

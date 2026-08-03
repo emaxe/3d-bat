@@ -7,7 +7,7 @@ import { Tower } from '../entities/tower.js';
 import { glowTexture } from '../world/textures.js';
 
 export class BuildSystem {
-  constructor(state, effects, sfx, particles, hud, panel, camera) {
+  constructor(state, effects, sfx, particles, hud, panel, camera, isTouch = false) {
     this.state = state;
     this.effects = effects;
     this.sfx = sfx;
@@ -15,6 +15,7 @@ export class BuildSystem {
     this.hud = hud;
     this.panel = panel;
     this.camera = camera;
+    this.isTouch = isTouch;
     this.scene = null;
 
     this.buildMode = null;
@@ -357,64 +358,111 @@ export class BuildSystem {
   /**
    * Raycast на башню.
    *
-   * Проблема старого подхода: брался первый хит луча по мешам — у башен есть
-   * выступающие части (крылья, ауры, тени), поэтому при плотной застройке клик
-   * «перехватывала» соседняя башня. Теперь главный критерий — расстояние от
-   * точки тапа на земле до позиции башни (порог 1.6), а пересечение мешей —
-   * только фолбэк, если луч не попал в радиус ни одной башни.
+   * Главный критерий — экранная близость центра башни к точке тапа: она не
+   * зависит от угла камеры и выступающих частей моделей (уши, крылья, купола).
+   * Точное пересечение луча с мешами — только фолбэк: клик в край большой
+   * башни, чей центр дальше порога.
    */
   raycastTower(x, y, towers, raycaster) {
-    const ndc = this.toNdc(x, y);
-    raycaster.setFromCamera(ndc, this.camera);
+    // 1) Ближайшая к тапу по экрану.
+    const screen = this.towerCandidatesOnScreen(x, y, towers);
+    if (screen.length) {return screen[0];}
 
-    // точка тапа на уровне центра башен (y ≈ 1.0)
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.0);
-    const groundHit = new THREE.Vector3();
-    if (raycaster.ray.intersectPlane(plane, groundHit)) {
-      let best = null;
-      let bestD = 1.6;
-      for (const t of towers) {
-        if (!t.alive) {continue;}
-        const dx = groundHit.x - t.pos.x;
-        const dz = groundHit.z - t.pos.z;
-        const d = Math.sqrt(dx * dx + dz * dz);
-        if (d < bestD) {bestD = d; best = t;}
+    // 2) Фолбэк: точный raycast по «твёрдым» мешам.
+    const { meshes, towerByMesh } = this.collectTowerMeshes(towers);
+    if (meshes.length) {
+      const ndc = this.toNdc(x, y);
+      raycaster.setFromCamera(ndc, this.camera);
+      const hits = raycaster.intersectObjects(meshes, false);
+      if (hits.length && towerByMesh.has(hits[0].object)) {
+        return towerByMesh.get(hits[0].object);
       }
-      if (best) {return best;}
     }
-
-    // фолбэк: классический raycast по мешам
-    const meshes = towers.filter(t => t.alive).map(t => t.mesh);
-    const hits = raycaster.intersectObjects(meshes, true);
-    if (!hits.length) {return null;}
-    return towers.find(t =>
-      t.mesh === hits[0].object ||
-      t.mesh.children.includes(hits[0].object) ||
-      this.isDescendant(hits[0].object, t.mesh)
-    ) || null;
+    return null;
   }
 
   /**
-   * Кандидаты на выбор: все живые башни в радиусе 2.8 от точки тапа,
-   * отсортированные по близости. Нужно для циклического перебора
-   * (повторный тап по группе башен выбирает следующую).
+   * Собирает «твёрдые» меши всех живых башен (без декора: кольца, ауры, тени).
    */
-  raycastTowerCandidates(x, y, towers, raycaster) {
-    const ndc = this.toNdc(x, y);
-    raycaster.setFromCamera(ndc, this.camera);
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.0);
-    const groundHit = new THREE.Vector3();
-    if (!raycaster.ray.intersectPlane(plane, groundHit)) {return [];}
+  collectTowerMeshes(towers) {
+    const meshes = [];
+    const towerByMesh = new Map();
+    for (const t of towers) {
+      if (!t.alive || !t.mesh) {continue;}
+      t.mesh.traverse(o => {
+        if (o.isMesh && o.userData.pickable !== false) {
+          meshes.push(o);
+          towerByMesh.set(o, t);
+        }
+      });
+    }
+    return { meshes, towerByMesh };
+  }
+
+  /**
+   * Кандидаты по экранной близости: все живые башни, чей центр на экране
+   * попадает в круг порога вокруг точки тапа, отсортированные по близости.
+   * Экранная дистанция не зависит от угла камеры и плотности застройки —
+   * в отличие от пересечения луча с плоскостью (старый метод «не видел»
+   * башни за соседними и путал их при низком угле).
+   */
+  towerCandidatesOnScreen(x, y, towers) {
+    const v = new THREE.Vector3();
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const thresh = this.isTouch ? 64 : 46;
+    const thresh2 = thresh * thresh;
     const out = [];
     for (const t of towers) {
       if (!t.alive) {continue;}
-      const dx = groundHit.x - t.pos.x;
-      const dz = groundHit.z - t.pos.z;
-      const d = Math.sqrt(dx * dx + dz * dz);
-      if (d <= 2.8) {out.push({ t, d });}
+      // центр модели: насест + ~0.9 высоты
+      v.set(t.pos.x, t.pos.y + 0.9, t.pos.z).project(this.camera);
+      if (v.z > 1) {continue;} // за камерой
+      const sx = (v.x + 1) * 0.5 * w;
+      const sy = (1 - v.y) * 0.5 * h;
+      const dx = sx - x;
+      const dy = sy - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 <= thresh2) {out.push({ t, d2 });}
     }
-    out.sort((a, b) => a.d - b.d);
+    out.sort((a, b) => a.d2 - b.d2);
     return out.map(o => o.t);
+  }
+
+  /**
+   * Кандидаты на выбор: башни в точке тапа, отсортированные по близости к нему.
+   * Нужно для циклического перебора (повторный тап по группе башен выбирает
+   * следующую). Первый кандидат — ближайшая к пальцу башня: именно она и
+   * выбирается первым тапом. Точный хит луча добавляется в конец, если его
+   * башни нет в списке (клик в край большой башни, центр дальше порога).
+   */
+  raycastTowerCandidates(x, y, towers, raycaster) {
+    const out = [];
+    // 1) Ближайшие к тапу по экрану — главный критерий. Экранная дистанция не
+    // зависит от угла камеры и выступающих частей моделей, поэтому при плотной
+    // застройке первым тапом выбирается именно та башня, к которой прицелился
+    // игрок, а не та, чьи уши/крылья перехватили луч.
+    for (const t of this.towerCandidatesOnScreen(x, y, towers)) {
+      out.push(t);
+    }
+
+    // 2) Точные хиты луча: добавляем ВСЕ башни, чьи «твёрдые» меши пересекли
+    // луч — не только первый. Иначе при плотной застройке дальняя башня,
+    // которую игрок видит под пальцем, не попадает в кандидатов, и её
+    // невозможно выбрать вовсе. Сортируем по расстоянию луча, дедуплицируем.
+    const { meshes, towerByMesh } = this.collectTowerMeshes(towers);
+    if (meshes.length) {
+      const ndc = this.toNdc(x, y);
+      raycaster.setFromCamera(ndc, this.camera);
+      const hits = raycaster.intersectObjects(meshes, false);
+      const rayTowers = [];
+      for (const hit of hits) {
+        const t = towerByMesh.get(hit.object);
+        if (t && !out.includes(t) && !rayTowers.includes(t)) {rayTowers.push(t);}
+      }
+      for (const t of rayTowers) {out.push(t);}
+    }
+    return out;
   }
 
   /**
