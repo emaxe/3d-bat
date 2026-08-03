@@ -47,7 +47,13 @@ function showFatal(title, message) {
       setTimeout(() => { btn.textContent = '📋 Копировать'; btn.style.borderColor = 'rgba(255,255,255,0.35)'; }, 1800);
     });
   });
-  head.append(titleEl, btn);
+  const reloadBtn = document.createElement('button');
+  reloadBtn.textContent = '🔄 Перезапустить';
+  reloadBtn.style.cssText =
+    'background:#e0463c;color:#fff;border:none;border-radius:8px;padding:4px 12px;' +
+    'font-size:12px;font-weight:700;cursor:pointer;flex:0 0 auto;';
+  reloadBtn.addEventListener('click', () => location.reload());
+  head.append(titleEl, btn, reloadBtn);
 
   const msg = document.createElement('pre');
   msg.textContent = message;

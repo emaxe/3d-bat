@@ -29,7 +29,9 @@ export class Game {
     this.container = container;
     // мобильные GPU слабее: меньше пикселей, без MSAA, без форсированного high-performance
     this.isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-    this.maxPixelRatio = this.isTouch ? 1.5 : 2;
+    // 1.25 на тач — заметно меньше VRAM под буферы канваса (слабые GPU телефонов
+    // теряют WebGL-контекст от переполнения памяти); десктоп — 2.
+    this.maxPixelRatio = this.isTouch ? 1.25 : 2;
     this.renderer = new THREE.WebGLRenderer({
       antialias: !this.isTouch,
       powerPreference: this.isTouch ? 'default' : 'high-performance',
@@ -683,10 +685,10 @@ export class Game {
     if (this._fpsFrames >= 90) {
       const avgMs = (this._fpsAcc / this._fpsFrames) * 1000;
       const cur = this.renderer.getPixelRatio();
-      if (avgMs > 45 && cur > 0.8) {
-        this.renderer.setPixelRatio(Math.max(0.8, cur * 0.85));
+      if (avgMs > 38 && cur > 0.7) {
+        this.renderer.setPixelRatio(Math.max(0.7, cur * 0.8));
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-      } else if (avgMs < 22 && cur < this.maxPixelRatio - 0.05) {
+      } else if (avgMs < 20 && cur < this.maxPixelRatio - 0.05) {
         this.renderer.setPixelRatio(Math.min(this.maxPixelRatio, cur * 1.1));
         this.renderer.setSize(window.innerWidth, window.innerHeight);
       }
