@@ -2,12 +2,14 @@
 // Принимает конфиг уровня (LEVELS[i]) и путь — весь декор размещается
 // с гарантированным отступом от трассы, чтобы ничего не стояло на пути врагов.
 import * as THREE from 'three';
+
 import { LEVELS, CRYSTAL, ENTRANCE } from '../core/layout.js';
 import { Path } from '../core/math.js';
+
 import { rockTexture, rockBumpTexture, crystalTexture, glowTexture, makeFbm } from './textures.js';
 
 // Вершинный шум для «камней».
-function displace(geo, amp, seed = 1) {
+function _displace(geo, amp, seed = 1) {
   const pos = geo.attributes.position;
   const v = new THREE.Vector3();
   const rnd = mulberry(seed);
@@ -40,7 +42,7 @@ function minDistToPath(path, x, z, step = 1.2) {
   for (let d = 0; d <= path.length; d += step) {
     const p = path.pointAt(d);
     const dist = Math.hypot(p.x - x, p.z - z);
-    if (dist < best) best = dist;
+    if (dist < best) {best = dist;}
   }
   return best;
 }
@@ -52,7 +54,7 @@ function findSpot(rnd, path, minR, maxR, clearance, tries = 40) {
     const rad = minR + rnd() * (maxR - minR);
     const x = Math.cos(ang) * rad;
     const z = Math.sin(ang) * rad;
-    if (minDistToPath(path, x, z) >= clearance) return { x, z };
+    if (minDistToPath(path, x, z) >= clearance) {return { x, z };}
   }
   return null; // не нашли — пропускаем (визуальный декор, не критично)
 }
@@ -71,7 +73,7 @@ function findBoulder(rnd, path, minR, maxR, clearance, tailNo) {
       if (dist < best) { best = dist; bd = d; }
     }
     // не ставим валуны в финальной зоне (у кристалла) — там игрок строит и смотрит
-    if (best >= clearance && bd < path.length - tailNo) return { x, z };
+    if (best >= clearance && bd < path.length - tailNo) {return { x, z };}
   }
   return null;
 }
@@ -112,7 +114,7 @@ export function buildCave(cfg = null, path = null) {
   const torchSprites = [];
   for (let i = 0; i < 5; i++) {
     const spot = findSpot(mulberry(500 + i * 77), usePath, 5.5, 9.5, 4.2);
-    if (!spot) continue;
+    if (!spot) {continue;}
     const y = 1.5 + (i % 3) * 0.25;
     const spr = new THREE.Sprite(new THREE.SpriteMaterial({
       map: torchTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9,
@@ -191,7 +193,7 @@ export function buildCave(cfg = null, path = null) {
   const stal2Geo = new THREE.ConeGeometry(0.35, 1, 5);
   for (let i = 0; i < 12; i++) {
     const spot = findSpot(rnd, usePath, 10, 18, 4.5);
-    if (!spot) continue;
+    if (!spot) {continue;}
     const m = new THREE.Mesh(stal2Geo, rockMat);
     m.position.set(spot.x, FLOOR_Y, spot.z);
     m.scale.set(0.6 + rnd() * 0.6, 0.7 + rnd() * 1.1, 0.6 + rnd() * 0.6);
@@ -206,7 +208,7 @@ export function buildCave(cfg = null, path = null) {
   });
   for (let i = 0; i < 5; i++) {
     const spot = findSpot(mulberry(700 + i * 31), usePath, 2.8, 4.4, 3.0, 30);
-    if (!spot) continue;
+    if (!spot) {continue;}
     const druze = new THREE.Mesh(new THREE.OctahedronGeometry(0.35 + rnd() * 0.25, 0), druzeMat);
     druze.position.set(spot.x, FLOOR_Y + 0.45, spot.z);
     druze.rotation.y = rnd() * Math.PI;
@@ -224,7 +226,7 @@ export function buildCave(cfg = null, path = null) {
   const shroomStemGeo = new THREE.CylinderGeometry(0.05, 0.07, 0.22, 5);
   for (let i = 0; i < 6; i++) {
     const spot = findSpot(rnd, usePath, 2.0, 7.5, 3.2);
-    if (!spot) continue;
+    if (!spot) {continue;}
     const g = new THREE.Group();
     const cap = new THREE.Mesh(shroomCapGeo, shroomCapMat);
     cap.position.y = 0.22;
@@ -241,7 +243,7 @@ export function buildCave(cfg = null, path = null) {
   const boulderGeo = new THREE.DodecahedronGeometry(0.5, 0);
   for (let i = 0; i < 4; i++) {
     const spot = findBoulder(rnd, usePath, 9.0, 14.5, 6.2, 7);
-    if (!spot) continue;
+    if (!spot) {continue;}
     const b = new THREE.Mesh(boulderGeo, rockMat);
     b.position.set(spot.x, FLOOR_Y + 0.25, spot.z);
     b.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
@@ -262,7 +264,7 @@ export function buildCave(cfg = null, path = null) {
     });
     for (let i = 0; i < (isLava ? 1 : 2); i++) {
       const spot = findSpot(mulberry(810 + i * 47), usePath, 8, 14, 6.8);
-      if (!spot) continue;
+      if (!spot) {continue;}
       const pool = new THREE.Mesh(new THREE.CircleGeometry(2.6 + rnd() * 1.8, 28), waterMat);
       pool.rotation.x = -Math.PI / 2;
       pool.position.set(spot.x, FLOOR_Y + floorHeightAt(spot.x, spot.z) + 0.06, spot.z);
@@ -279,7 +281,7 @@ export function buildCave(cfg = null, path = null) {
     });
     for (let i = 0; i < 5; i++) {
       const spot = findSpot(mulberry(900 + i * 61), usePath, 4.5, 12, 3.8);
-      if (!spot) continue;
+      if (!spot) {continue;}
       const len = 2.5 + rnd() * 2.5;
       const crack = new THREE.Mesh(new THREE.PlaneGeometry(len, 0.14), crackMat);
       crack.rotation.x = -Math.PI / 2;
@@ -295,7 +297,7 @@ export function buildCave(cfg = null, path = null) {
   const spires = [];
   for (let i = 0; i < 3; i++) {
     const spot = findSpot(mulberry(1000 + i * 83), usePath, 9, 15, 8.5);
-    if (!spot) continue;
+    if (!spot) {continue;}
     const h = 4 + rnd() * 4;
     const spire = new THREE.Mesh(new THREE.ConeGeometry(1.1, h, 7), rockMat);
     spire.position.set(spot.x, FLOOR_Y + h / 2 - 0.3, spot.z);

@@ -81,7 +81,7 @@ export function genEndlessWave(wave) {
 }
 
 export function waveGroups(wave) {
-  if (wave <= TOTAL_WAVES) return HANDCRAFTED[wave - 1].groups;
+  if (wave <= TOTAL_WAVES) {return HANDCRAFTED[wave - 1].groups;}
   return genEndlessWave(wave);
 }
 
@@ -92,7 +92,7 @@ export function waveSpawns(wave) {
 // Превью состава волны: [{type, n}] — для показа игроку до старта.
 export function wavePreview(wave) {
   const counts = {};
-  for (const s of waveSpawns(wave)) counts[s.type] = (counts[s.type] || 0) + 1;
+  for (const s of waveSpawns(wave)) {counts[s.type] = (counts[s.type] || 0) + 1;}
   return Object.entries(counts).map(([type, n]) => ({ type, n }));
 }
 

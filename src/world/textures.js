@@ -1,5 +1,6 @@
 // Генерация всех текстур через Canvas 2D — ноль файлов ассетов.
 import * as THREE from 'three';
+
 import { mulberry32 } from '../core/rng.js';
 
 function canvas2d(w, h) {
@@ -10,14 +11,14 @@ function canvas2d(w, h) {
 
 // Нормализация цвета для Canvas API: числа (0xffb066) -> '#ffb066', строки пропускаем.
 function toCss(color, fallback = '#ffffff') {
-  if (typeof color === 'number') return '#' + color.toString(16).padStart(6, '0');
+  if (typeof color === 'number') {return '#' + color.toString(16).padStart(6, '0');}
   return color ?? fallback;
 }
 
 function toTexture(c, opts = {}) {
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  if (opts.repeat) t.repeat.set(opts.repeat[0], opts.repeat[1]);
+  if (opts.repeat) {t.repeat.set(opts.repeat[0], opts.repeat[1]);}
   t.anisotropy = 4;
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
@@ -27,7 +28,7 @@ function toTexture(c, opts = {}) {
 function makeValueNoise(seed) {
   const rnd = mulberry32(seed);
   const grid = new Float32Array(128 * 128);
-  for (let i = 0; i < grid.length; i++) grid[i] = rnd();
+  for (let i = 0; i < grid.length; i++) {grid[i] = rnd();}
   return function (x, y) {
     const gx = Math.floor(x), gy = Math.floor(y);
     const fx = x - gx, fy = y - gy;
@@ -44,7 +45,7 @@ function makeValueNoise(seed) {
 // FBM с предсобранными октавами — готов к вызову на пиксель.
 export function makeFbm(seed, octaves = 4) {
   const octs = [];
-  for (let o = 0; o < octaves; o++) octs.push(makeValueNoise(seed + o * 101));
+  for (let o = 0; o < octaves; o++) {octs.push(makeValueNoise(seed + o * 101));}
   return function (x, y) {
     let a = 0, amp = 0.5, freq = 1, sum = 0;
     for (let o = 0; o < octs.length; o++) {
@@ -65,7 +66,7 @@ export const cachedTextures = new Set();
 // Каменная текстура с прожилками.
 const rockCache = new Map();
 export function rockTexture(seed = 7) {
-  if (rockCache.has(seed)) return rockCache.get(seed);
+  if (rockCache.has(seed)) {return rockCache.get(seed);}
   const [c, g] = canvas2d(256, 256);
   const img = g.createImageData(256, 256);
   const fbm5 = makeFbm(seed, 5);
@@ -90,7 +91,7 @@ export function rockTexture(seed = 7) {
 
 const bumpCache = new Map();
 export function rockBumpTexture(seed = 11) {
-  if (bumpCache.has(seed)) return bumpCache.get(seed);
+  if (bumpCache.has(seed)) {return bumpCache.get(seed);}
   const [c, g] = canvas2d(256, 256);
   const img = g.createImageData(256, 256);
   const fbm4 = makeFbm(seed, 4);
@@ -113,7 +114,7 @@ export function rockBumpTexture(seed = 11) {
 // Гранёный кристалл.
 const crystalCache = new Map();
 export function crystalTexture(seed = 3) {
-  if (crystalCache.has(seed)) return crystalCache.get(seed);
+  if (crystalCache.has(seed)) {return crystalCache.get(seed);}
   const [c, g] = canvas2d(256, 256);
   const grad = g.createLinearGradient(0, 0, 256, 256);
   grad.addColorStop(0, '#0a2a3a');
@@ -146,7 +147,7 @@ export function crystalTexture(seed = 3) {
 const wingCache2 = new Map();
 export function wingTexture(color = '#7a6a9a') {
   const key = String(color);
-  if (wingCache2.has(key)) return wingCache2.get(key);
+  if (wingCache2.has(key)) {return wingCache2.get(key);}
   const [c, g] = canvas2d(128, 64);
   g.clearRect(0, 0, 128, 64);
   const grad = g.createRadialGradient(10, 32, 4, 64, 32, 58);
@@ -175,7 +176,7 @@ export function wingTexture(color = '#7a6a9a') {
 const glowCache2 = new Map();
 export function glowTexture(color = '#ffffff', inner = '#ffffff') {
   const key = `${color}|${inner}`;
-  if (glowCache2.has(key)) return glowCache2.get(key);
+  if (glowCache2.has(key)) {return glowCache2.get(key);}
   const [c, g] = canvas2d(64, 64);
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   grad.addColorStop(0, toCss(inner));

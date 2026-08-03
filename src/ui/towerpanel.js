@@ -22,7 +22,7 @@ export class TowerPanel {
     this.sellBtn.addEventListener('click', () => this.actions.sell(this.tower));
     document.getElementById('tp-close').addEventListener('click', () => this.actions.deselect());
 
-    this.state.on('essence', () => { if (this.tower) this.refresh(); });
+    this.state.on('essence', () => { if (this.tower) {this.refresh();} });
   }
 
   select(tower, mergePartner) {
@@ -39,7 +39,7 @@ export class TowerPanel {
 
   refresh() {
     const t = this.tower;
-    if (!t) return;
+    if (!t) {return;}
     const def = TOWER_TYPES[t.typeId];
     const name = t.isAlpha ? def.alpha.name : `${def.name} ${'★'.repeat(t.level)}`;
     this.title.textContent = name;

@@ -1,4 +1,23 @@
+```
+# Dependencies
 node_modules/
+
+# Logs and temp files
 *.log
-.DS_Store
-*.local
+*.tmp
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+coverage/
+.nyc_output/
+```

@@ -1,7 +1,9 @@
 // Визуализация 3D-пути: светящаяся лента + маркеры. Данные пути — из core.
 import * as THREE from 'three';
+
 import { LEVELS, buildPath, ENTRANCE, CRYSTAL } from '../core/layout.js';
 import { Path } from '../core/math.js';
+
 import { glowTexture } from './textures.js';
 
 export function buildPathVisual(scene, cfg = null) {

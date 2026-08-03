@@ -60,15 +60,15 @@ export class Effects {
     this.shake = Math.max(0, this.shake - dt * 2.2);
     // вспышка
     const fo = parseFloat(this.flashEl.style.opacity || 0);
-    if (fo > 0) this.flashEl.style.opacity = Math.max(0, fo - dt * 2.5);
+    if (fo > 0) {this.flashEl.style.opacity = Math.max(0, fo - dt * 2.5);}
     // баннер
     if (this.bannerTimer > 0) {
       this.bannerTimer -= dt;
-      if (this.bannerTimer <= 0) this.bannerEl.parentElement.classList.remove('show');
+      if (this.bannerTimer <= 0) {this.bannerEl.parentElement.classList.remove('show');}
     }
     // урон
     for (const p of this.dmgPool) {
-      if (!p.active) continue;
+      if (!p.active) {continue;}
       p.t += dt;
       if (p.t >= p.life) { p.active = false; p.el.style.display = 'none'; continue; }
       p.y -= p.vy * dt;
@@ -80,7 +80,7 @@ export class Effects {
 
   // применяет тряску к камере, возвращает вектор смещения
   shakeOffset() {
-    if (this.shake <= 0) return null;
+    if (this.shake <= 0) {return null;}
     const a = this.shake * 0.35;
     return new THREE.Vector3((Math.random() - 0.5) * a, (Math.random() - 0.5) * a, 0);
   }

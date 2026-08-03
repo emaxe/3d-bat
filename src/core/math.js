@@ -21,7 +21,7 @@ export class Vec3 {
   }
   normalize() {
     const l = this.len();
-    if (l > 1e-8) this.scale(1 / l);
+    if (l > 1e-8) {this.scale(1 / l);}
     return this;
   }
   lerp(v, t) {
@@ -79,10 +79,10 @@ export class Path {
   pointAt(dist) {
     const s = this.samples;
     const c = this.cum;
-    if (dist <= 0) return s[0].clone();
-    if (dist >= this.length) return s[s.length - 1].clone();
+    if (dist <= 0) {return s[0].clone();}
+    if (dist >= this.length) {return s[s.length - 1].clone();}
     let lo = 0, hi = s.length - 1;
-    while (lo < hi - 1) { const mid = (lo + hi) >> 1; if (c[mid] <= dist) lo = mid; else hi = mid; }
+    while (lo < hi - 1) { const mid = (lo + hi) >> 1; if (c[mid] <= dist) {lo = mid;} else {hi = mid;} }
     const segLen = c[hi] - c[lo];
     const t = segLen > 1e-9 ? (dist - c[lo]) / segLen : 0;
     return s[lo].clone().lerp(s[hi], t);
@@ -110,7 +110,7 @@ export class Path {
     for (let d = 0; d <= this.length; d += step) {
       const p = this.samples[Math.min(n - 1, Math.round((d / this.length) * (n - 1)))];
       const dd = p.distSq(pos);
-      if (dd < bestD) bestD = dd;
+      if (dd < bestD) {bestD = dd;}
     }
     return Math.sqrt(bestD);
   }

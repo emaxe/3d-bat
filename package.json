@@ -7,12 +7,20 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "lint": "eslint src/**/*.js",
+    "lint:fix": "eslint src/**/*.js --fix",
+    "format": "prettier --write \"src/**/*.js\" \"tests/**/*.mjs\""
   },
   "dependencies": {
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "globals": "^17.9.0",
+    "prettier": "^3.9.6",
     "vite": "^8.2.0"
   }
 }

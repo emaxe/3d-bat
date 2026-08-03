@@ -1,6 +1,8 @@
 // Насесты — каменные столбы с маркером установки.
 import * as THREE from 'three';
+
 import { LEVELS, PERCHES } from '../core/layout.js';
+
 import { glowTexture, ringTexture } from './textures.js';
 
 export function buildPerches(scene, rockMat, cfg = null) {
@@ -45,7 +47,7 @@ export function buildPerches(scene, rockMat, cfg = null) {
 // Подсветка доступных насестов при выборе башни.
 export function highlightAvailable(perches, affordable) {
   for (const p of perches) {
-    if (p.occupied) continue;
+    if (p.occupied) {continue;}
     p.setHighlight(affordable);
   }
 }
