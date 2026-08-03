@@ -7,19 +7,33 @@ import { Tower } from '../entities/tower.js';
 import { glowTexture } from '../world/textures.js';
 
 export class BuildSystem {
-  constructor(state, effects, sfx, particles, hud, panel) {
+  constructor(state, effects, sfx, particles, hud, panel, camera) {
     this.state = state;
     this.effects = effects;
     this.sfx = sfx;
     this.particles = particles;
     this.hud = hud;
     this.panel = panel;
-    
+    this.camera = camera;
+    this.scene = null;
+
     this.buildMode = null;
     this.selectedTower = null;
     this.ghostRing = null;
     this.hintEl = null;
     this.lastHoverTower = null;
+  }
+
+  /**
+   * Устанавливает активную сцену (меняется при переходе между уровнями).
+   * Призрак башни живёт в сцене, поэтому его надо перевешивать при смене сцены.
+   */
+  setScene(scene) {
+    this.scene = scene;
+    if (this.ghostRing) {
+      if (this.ghostRing.parent && this.ghostRing.parent !== scene) this.ghostRing.parent.remove(this.ghostRing);
+      scene.add(this.ghostRing);
+    }
   }
 
   /**
@@ -56,6 +70,7 @@ export class BuildSystem {
       this.ghostRing = new THREE.Sprite(
         new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.5 })
       );
+      if (this.scene) this.scene.add(this.ghostRing);
     }
     this.ghostRing.visible = true;
   }
@@ -68,7 +83,7 @@ export class BuildSystem {
     if (!this.buildMode) {return;}
 
     this.buildMode = null;
-    for (const p of perches) {
+    for (const p of (perches ?? [])) {
       p.setHighlight(false);
     }
     if (this.ghostRing) {
@@ -110,8 +125,14 @@ export class BuildSystem {
       color: def.glow,
       gravity: 0.5
     });
-    
-    this.cancelBuildMode([]);
+
+    // режим строительства снимает вызывающий (game.js.cancelBuildMode с perches —
+    // он же снимает подсветку насестов); здесь сбрасываем только состояние.
+    this.buildMode = null;
+    if (this.ghostRing) {
+      this.ghostRing.visible = false;
+    }
+    this.hintEl?.classList.remove('show');
     return tower;
   }
 
@@ -181,7 +202,10 @@ export class BuildSystem {
       color: TOWER_TYPES[tower.typeId].glow,
       gravity: 0
     });
-    
+
+    // обновить панель: партнёр для слияния мог появиться/измениться
+    const partner = mergePartner(tower, this.towers);
+    this.panel?.select(tower, partner);
     return true;
   }
 
@@ -220,7 +244,8 @@ export class BuildSystem {
       color: alpha.glow,
       gravity: 0
     });
-    
+
+    this.panel?.select(tower, null);
     return true;
   }
 

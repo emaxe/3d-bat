@@ -3,17 +3,15 @@ import * as THREE from 'three';
 import { GameState } from './core/state.js';
 import { buildCave, updateCave } from './world/cave.js';
 import { buildPathVisual } from './world/path.js';
-import { buildPerches, highlightAvailable } from './world/perches.js';
+import { buildPerches } from './world/perches.js';
 import { TOWER_TYPES } from './core/towers.js';
-import { upgradeCost, mergePartner, mergeCost, MAX_LEVEL } from './core/towers.js';
-import { sellPrice, killReward, ECONOMY, waveClearReward } from './core/economy.js';
-import { waveSpawns, wavePreview, moonForWave, MOON_PHASES, TOTAL_WAVES } from './core/waves.js';
+import { killReward, ECONOMY, waveClearReward } from './core/economy.js';
+import { wavePreview, TOTAL_WAVES } from './core/waves.js';
 import { ENEMY_TYPES } from './core/enemies.js';
 import { LEVELS, CRYSTAL, buildLevelPath } from './core/layout.js';
 import { UPGRADE_POOL, pickUpgrades } from './core/upgrades.js';
 import { mulberry32 } from './core/rng.js';
 import { Enemy } from './entities/enemy.js';
-import { Tower } from './entities/tower.js';
 import { ParticleSystem } from './entities/particles.js';
 import { Effects } from './entities/effects.js';
 import { Sfx } from './audio/sfx.js';
@@ -21,7 +19,10 @@ import { Music } from './audio/music.js';
 import { Hud, buildBuildBar } from './ui/hud.js';
 import { Menus } from './ui/menu.js';
 import { TowerPanel } from './ui/towerpanel.js';
-import { glowTexture, cachedTextures } from './world/textures.js';
+import { cachedTextures } from './world/textures.js';
+import { CameraController } from './managers/cameraController.js';
+import { WaveManager } from './managers/waveManager.js';
+import { BuildSystem } from './managers/buildSystem.js';
 
 export class Game {
   constructor(container) {
@@ -53,7 +54,7 @@ export class Game {
     });
 
     this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 120);
-    this.cameraRig = new CameraRig(this.camera, this.renderer.domElement);
+    this.cameraCtrl = new CameraController(this.camera, this.renderer.domElement);
 
     this.sfx = new Sfx();
     this.music = new Music(this.sfx);
@@ -65,24 +66,18 @@ export class Game {
     this.towers = [];
     this.projectiles = [];
     this.pulses = [];
-    this.currentBoss = null;
-    this.selectedTower = null;
-    this.buildMode = null;
-    this.spawnQueue = [];
-    this.spawnIdx = 0;
-    this.spawnTimer = 0;
-    this.waveDelay = 2.2;
-    this.waveDelayLeft = 0;
     this.gameTime = 0;
     this.kills = 0;
     this.continuing = false;
     this.running = false;
-    this.ghostRing = null;
     this.raycaster = new THREE.Raycaster();
-    this.lastHoverTower = null;
     this.hud = null;
     this.panel = null;
     this.menus = null;
+
+    // менеджеры: строительство, камера, волны (hud/panel/particles подключаются позже)
+    this.waves = new WaveManager(this.state, this.effects, this.sfx, null);
+    this.build = new BuildSystem(this.state, this.effects, this.sfx, null, null, null, this.camera);
 
     // прогрессия кампании
     this.levelIndex = 0;
@@ -122,6 +117,10 @@ export class Game {
       sell: (t) => this.sellTower(t),
       deselect: () => this.deselectTower(),
     });
+    // менеджеры получают ссылки на UI (создаются раньше, в конструкторе)
+    this.build.hud = this.hud;
+    this.build.panel = this.panel;
+    this.waves.hud = this.hud;
     this.hud.el.next.addEventListener('click', () => this.skipDelay());
     this.state.on('gameover', () => {
       this.sfx.gameover();
@@ -141,7 +140,7 @@ export class Game {
       this.continuing = true;
       this.state.won = false;
       this.state.over = false;
-      this.waveDelayLeft = 3.0;
+      this.waves.setWaveDelay(3.0);
       this.effects.showBanner('Бесконечный режим', 'Волны всё сильнее…', '#ff9a2a', 3);
       return;
     }
@@ -164,7 +163,7 @@ export class Game {
     this.state.spawning = false;
     this.state.paused = false;
     this.state.emit('combo', 0);
-    this.waveDelayLeft = 1.6;
+    this.waves.setWaveDelay(1.6);
   }
 
   // Строит сцену уровня idx: пещера (тема), путь, насесты, частицы, билд-бар.
@@ -179,6 +178,8 @@ export class Game {
     this.pathVis = buildPathVisual(this.cave.scene, cfg);
     this.perches = buildPerches(this.cave.scene, this.cave.materials.rockMat, cfg);
     this.particles = new ParticleSystem(this.cave.scene);
+    this.build.particles = this.particles;
+    this.build.setScene(this.cave.scene);
     if (this.ctx) { this.ctx.scene = this.cave.scene; this.ctx.particles = this.particles; }
     if (this.hud) {
       buildBuildBar(cfg.unlockedTowers, this.ctx.buildDiscount, (id, def) => this.enterBuildMode(id, def));
@@ -194,12 +195,9 @@ export class Game {
     this.state.emit('combo', 0);
     this.state.emit('hp', this.state.crystalHp, this.state.maxHp);
     this.state.emit('essence', this.state.essence);
-    this.spawnQueue = [];
-    this.spawnIdx = 0;
-    this.waveDelayLeft = 0;
-    this.currentBoss = null;
+    this.waves.reset();
     this.effects?.showBanner(`Ур.${idx + 1} · ${cfg.name}`, cfg.subtitle, cfg.theme.accent, 3.5);
-    this.cameraRig?.reset();
+    this.cameraCtrl?.reset();
   }
 
   // Освобождает геометрию/материалы/текстуры старой сцены при переходе между
@@ -235,10 +233,7 @@ export class Game {
   // Пропустить ожидание между волнами (кнопка «▶ Волну!» / клавиша N).
   skipDelay() {
     if (!this.running || this.state.spawning || this.state.won || this.state.over || this.state.paused) return;
-    if (this.waveDelayLeft > 0) {
-      this.waveDelayLeft = 0.01;
-      this.sfx.click();
-    }
+    if (this.waves.waveDelayLeft > 0) this.waves.skipDelay();
   }
 
   // Переключение скорости ×1 → ×2 → ×3 (клавиша Q).
@@ -261,32 +256,11 @@ export class Game {
     if (this.perches) for (const perch of this.perches) { perch.occupied = false; perch.tower = null; }
     this.deselectTower();
     this.cancelBuildMode();
-    this.currentBoss = null;
-    this.spawnQueue = [];
-    this.spawnIdx = 0;
+    this.waves.reset();
   }
 
   startWave(wave) {
-    this.state.setWave(wave);
-    // фаза луны
-    const moonId = moonForWave(wave);
-    this.state.setMoon(moonId);
-    const m = moonId ? MOON_PHASES[moonId] : null;
-    this.ctx.moonSpeedMul = m?.speedMul ?? 1;
-    this.ctx.moonRewardMul = m?.rewardMul ?? 1;
-    this.ctx.moonTowerMul = m?.towerMul ?? 1;
-    this.ctx.cloakAll = m?.cloakAll ?? false;
-    if (m) {
-      this.effects.showBanner(`🌙 ${m.name}`, m.desc, m.color, 4);
-    }
-    this.spawnQueue = waveSpawns(wave);
-    this.spawnIdx = 0;
-    this.spawnTimer = 0;
-    this.state.spawning = true;
-    if (this.ctx.moonTowerMul > 1) this.effects.showBanner(`Волна ${wave}`, 'Лунный свет усиливает стражей', '#ffe9a0', 1.6);
-    else this.effects.showBanner(`Волна ${wave}`, '', '#66e0ff', 1.6);
-    this.sfx.wave();
-    if (this.spawnQueue.some(s => ENEMY_TYPES[s.type].boss)) this.sfx.boss();
+    this.waves.startWave(wave, this.ctx);
   }
 
   waveCleared() {
@@ -307,7 +281,7 @@ export class Game {
       this.levelCleared();
       return;
     }
-    this.waveDelayLeft = 3.0;
+    this.waves.setWaveDelay(3.0);
     // выбор награды после 3/6/9 волн
     if (this.state.wave === 3 || this.state.wave === 6 || this.state.wave === 9) {
       this.showBonusChoice();
@@ -360,11 +334,11 @@ export class Game {
         try { window.dispatchEvent(new ErrorEvent('error', { error: err, message: String((err && err.stack) || err), filename: 'applyUpgrade', lineno: 0 })); } catch { /* оверлей недоступен */ }
         try { this.buildLevel(this.levelIndex); } catch { /* остаёмся как есть */ }
       }
-      this.waveDelayLeft = 3.0;
+      this.waves.setWaveDelay(3.0);
     } else {
       // уровень 3 пройден, но до победы ещё волны 8–10 не все отбиты —
       // сюда попадаем только если TOTAL_WAVES совпал с границей (не случается)
-      this.waveDelayLeft = 3.0;
+      this.waves.setWaveDelay(3.0);
     }
   }
 
@@ -409,21 +383,13 @@ export class Game {
   // ---------- ввод ----------
   setupEvents() {
     const dom = this.renderer.domElement;
-    // мультитач: pointerId → {x, y}; gesture: 'tap' | 'drag' | 'pinch'
-    this.pointers = new Map();
-    this.gesture = null;
-    this.tapId = null;
-    this.clickPos = null;
-    this.clickMoved = false;
-    this.pinchStart = 0;
-    this.pinchMoved = false;
-    this.gestureStart = 0;
+    // жесты и мультитач ведёт CameraController (tap/drag/pinch/pan)
 
     dom.addEventListener('pointerdown', e => this.onPointerDown(e));
     window.addEventListener('pointermove', e => this.onPointerMove(e));
     window.addEventListener('pointerup', e => this.onPointerUp(e));
     window.addEventListener('pointercancel', e => this.onPointerUp(e));
-    dom.addEventListener('wheel', e => { e.preventDefault(); this.cameraRig.zoom(e.deltaY); }, { passive: false });
+    dom.addEventListener('wheel', e => { e.preventDefault(); this.cameraCtrl.zoom(e.deltaY); }, { passive: false });
     dom.addEventListener('contextmenu', e => { e.preventDefault(); this.cancelBuildMode(); });
     window.addEventListener('keydown', e => {
       if (e.key === 'Escape') { this.cancelBuildMode(); this.deselectTower(); }
@@ -444,7 +410,7 @@ export class Game {
         ArrowUp: [0, 16], ArrowDown: [0, -16], ArrowLeft: [-16, 0], ArrowRight: [16, 0],
       };
       const pk = panKeys[e.key];
-      if (pk) { e.preventDefault(); this.cameraRig.pan(pk[0], pk[1]); }
+      if (pk) { e.preventDefault(); this.cameraCtrl.pan(pk[0], pk[1]); }
     });
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -459,141 +425,47 @@ export class Game {
   onPointerDown(e) {
     if (!this.running) return;
     this.sfx.init();
-    this.cameraRig.interact();
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (this.pointers.size === 1) {
-      if (e.button === 0 || e.pointerType === 'touch') {
-        // одиночное касание: ждём — тап или драг
-        this.gesture = 'tap';
-        this.tapId = e.pointerId;
-        this.clickPos = { x: e.clientX, y: e.clientY };
-        this.clickMoved = false;
-        this.gestureStart = performance.now();
-      } else if (e.button === 1) {
-        // средняя кнопка — сдвиг уровня
-        this.gesture = 'pan';
-        this.tapId = e.pointerId;
-        this.clickPos = null;
-        this.panLast = { x: e.clientX, y: e.clientY };
-      } else {
-        // правая кнопка — сразу вращение
-        this.gesture = 'drag';
-        this.tapId = e.pointerId;
-        this.clickPos = null;
-        this.cameraRig.dragStart(e.clientX, e.clientY);
-      }
-    } else if (this.pointers.size === 2) {
-      // щипок: зум + сдвиг одновременно
-      const [a, b] = [...this.pointers.values()];
-      this.pinchStart = Math.hypot(a.x - b.x, a.y - b.y);
-      this.pinchMoved = false;
-      this.pinchPrev = null;
-      this.gestureStart = performance.now();
-      this.gesture = 'pinch';
-      this.clickPos = null;
-      this.cameraRig.dragEnd();
-    }
+    this.cameraCtrl.handlePointerDown(e);
+    this.cameraCtrl.addPointer(e);
   }
 
   onPointerMove(e) {
-    if (!this.running || !this.pointers.has(e.pointerId)) return;
-    const p = this.pointers.get(e.pointerId);
-    p.x = e.clientX; p.y = e.clientY;
-    if (this.gesture === 'pan') {
-      this.cameraRig.pan(e.clientX - this.panLast.x, e.clientY - this.panLast.y);
-      this.panLast = { x: e.clientX, y: e.clientY };
-      return;
-    }
-    if (this.gesture === 'pinch' && this.pointers.size === 2) {
-      const [a, b] = [...this.pointers.values()];
-      const d = Math.hypot(a.x - b.x, a.y - b.y);
-      const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
-      const prev = this.pinchPrev;
-      if (prev) {
-        if (Math.abs(d - prev.d) > 4) this.pinchMoved = true;
-        if (Math.hypot(cx - prev.cx, cy - prev.cy) > 3) this.pinchMoved = true;
-        if (prev.d > 0) {
-          const ratio = d / prev.d;
-          if (Math.abs(ratio - 1) > 0.005) this.cameraRig.zoomByRatio(ratio);
-        }
-        const pdx = cx - prev.cx, pdy = cy - prev.cy;
-        if (Math.hypot(pdx, pdy) > 0.5) this.cameraRig.pan(pdx, pdy);
-      }
-      this.pinchPrev = { d, cx, cy };
-      return;
-    }
-    if (this.gesture === 'tap' && this.clickPos) {
-      if (Math.hypot(e.clientX - this.clickPos.x, e.clientY - this.clickPos.y) > 8) {
-        this.gesture = 'drag';
-        this.cameraRig.dragStart(this.clickPos.x, this.clickPos.y);
-      }
-    }
-    if (this.gesture === 'drag') {
-      this.cameraRig.drag(e.clientX, e.clientY);
-    } else if (e.pointerType === 'mouse') {
+    if (!this.running) return;
+    this.cameraCtrl.handlePointerMove(e);
+    // hover подсветка только мышью и вне жеста перетаскивания
+    if (e.pointerType === 'mouse' && !this.cameraCtrl.dragging && this.cameraCtrl.gesture !== 'pan') {
       this.hover(e.clientX, e.clientY);
     }
   }
 
   onPointerUp(e) {
     if (!this.running) return;
-    this.pointers.delete(e.pointerId);
-    if (this.gesture === 'pinch') {
-      if (this.pointers.size === 0 && !this.pinchMoved && performance.now() - this.gestureStart < 350) {
-        // тап двумя пальцами — пауза
-        this.state.togglePause();
-        this.sfx.click();
-      }
-      if (this.pointers.size < 2) {
-        this.gesture = null;
-        this.clickPos = null;
-        this.cameraRig.dragEnd();
-      }
-      return;
+    const res = this.cameraCtrl.handlePointerUp(e);
+    if (!res) return;
+    if (res.type === 'tap') {
+      this.click(res.pos.x, res.pos.y);
+    } else if (res.type === 'two-finger-tap') {
+      // тап двумя пальцами — пауза
+      this.state.togglePause();
+      this.sfx.click();
     }
-    if (this.gesture === 'pan' && this.tapId === e.pointerId) {
-      this.gesture = null;
-      return;
-    }
-    if (this.gesture === 'drag' && this.tapId === e.pointerId) {
-      this.cameraRig.dragEnd();
-      this.gesture = null;
-      return;
-    }
-    if (this.gesture === 'tap' && this.tapId === e.pointerId && this.clickPos) {
-      this.cameraRig.dragEnd();
-      this.click(this.clickPos.x, this.clickPos.y);
-      this.gesture = null;
-      this.clickPos = null;
-    }
-    if (this.pointers.size === 0) this.gesture = null;
   }
 
   hover(x, y) {
-    if (this.buildMode) {
-      const perch = this.raycastPerch(x, y);
-      for (const p of this.perches) p.setHighlight(p === perch);
-      if (this.ghostRing) {
-        this.ghostRing.visible = !!perch;
-        if (perch) this.ghostRing.position.copy(perch.def.pos).setY(perch.def.pos.y + 0.5);
-      }
+    if (this.build.buildMode) {
+      this.build.handleBuildHover(x, y, this.perches, this.raycaster, this.camera);
       return;
     }
     // подсветка радиуса при наведении на башню
-    const t = this.raycastTower(x, y);
-    if (this.lastHoverTower && this.lastHoverTower !== this.selectedTower && this.lastHoverTower !== t) {
-      this.lastHoverTower.showRange(false);
-    }
-    if (t && t !== this.selectedTower) t.showRange(true);
-    this.lastHoverTower = t;
+    this.build.handleTowerHover(x, y, this.towers, this.raycaster, this.camera);
   }
 
   click(x, y) {
-    if (this.buildMode) {
-      const perch = this.raycastPerch(x, y);
+    if (this.build.buildMode) {
+      const perch = this.build.raycastPerch(x, y, this.perches, this.raycaster);
       if (perch) {
-        if (!perch.occupied && this.state.canAfford(this.buildCost(TOWER_TYPES[this.buildMode]))) {
-          this.buildTower(this.buildMode, perch);
+        if (!perch.occupied && this.state.canAfford(this.buildCost(TOWER_TYPES[this.build.buildMode]))) {
+          this.buildTower(this.build.buildMode, perch);
         } else if (perch.occupied) {
           this.hud?.showToast('Этот насест занят', '#ff8899');
           this.sfx.click();
@@ -601,7 +473,7 @@ export class Game {
       }
       return;
     }
-    const t = this.raycastTower(x, y);
+    const t = this.build.raycastTower(x, y, this.towers, this.raycaster);
     if (t) {
       this.selectTower(t);
     } else {
@@ -609,125 +481,39 @@ export class Game {
     }
   }
 
-  raycastPerch(x, y) {
-    const ndc = this.toNdc(x, y);
-    this.raycaster.setFromCamera(ndc, this.camera);
-    const meshes = [];
-    const perchByMesh = new Map();
-    for (const p of this.perches) {
-      if (p.occupied) continue;
-      p.group.traverse(o => { if (o.isMesh) { meshes.push(o); perchByMesh.set(o, p); } });
-    }
-    if (!meshes.length) return null;
-    const hits = this.raycaster.intersectObjects(meshes, false);
-    if (!hits.length) return null;
-    return perchByMesh.get(hits[0].object) || null;
-  }
-
-  raycastTower(x, y) {
-    const ndc = this.toNdc(x, y);
-    this.raycaster.setFromCamera(ndc, this.camera);
-    const meshes = this.towers.filter(t => t.alive).map(t => t.mesh);
-    const hits = this.raycaster.intersectObjects(meshes, true);
-    if (!hits.length) return null;
-    return this.towers.find(t => t.mesh === hits[0].object || t.mesh.children.includes(hits[0].object) || isDescendant(hits[0].object, t.mesh)) || null;
-  }
-
-  toNdc(x, y) {
-    return new THREE.Vector2((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
-  }
-
   // ---------- башни ----------
   buildCost(def) {
-    return Math.round(def.cost * (1 - (this.ctx.buildDiscount ?? 0)));
+    return this.build.buildCost(def, this.ctx.buildDiscount ?? 0);
   }
 
   enterBuildMode(typeId, def) {
-    this.sfx.init();
-    this.sfx.click();
-    const cost = this.buildCost(def);
-    if (!this.state.canAfford(cost)) {
-      this.hud?.showToast(`Не хватает ◆ ${cost} на «${def.name}»`, '#ff8899');
-      return;
-    }
-    this.deselectTower();
-    this.buildMode = typeId;
-    highlightAvailable(this.perches, this.state.canAfford(cost));
-    this.hintEl = this.hintEl || document.getElementById('build-hint');
-    this.hintEl.textContent = `Разместите: ${def.name} (◆ ${cost}) — клик по насесту, Esc отмена`;
-    this.hintEl.classList.add('show');
-    // призрак
-    if (!this.ghostRing) {
-      const tex = glowTexture('#66e0ff', 'rgba(150,230,255,0.7)');
-      this.ghostRing = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.5 }));
-      this.cave.scene.add(this.ghostRing);
-    }
+    this.build.enterBuildMode(typeId, def, this.perches);
   }
 
   cancelBuildMode() {
-    if (!this.buildMode) return;
-    this.buildMode = null;
-    for (const p of this.perches) p.setHighlight(false);
-    if (this.ghostRing) this.ghostRing.visible = false;
-    this.hintEl?.classList.remove('show');
+    this.build.cancelBuildMode(this.perches);
   }
 
   buildTower(typeId, perch) {
-    const def = TOWER_TYPES[typeId];
-    const cost = this.buildCost(def);
-    if (!this.state.spend(cost)) return;
-    const tower = new Tower(typeId, perch, this.cave.scene);
-    tower.spent = cost; // фактически заплачено (с учётом скидки) — для продажи/слияния
-    this.towers.push(tower);
-    perch.occupied = true;
-    perch.tower = tower;
-    this.sfx.build();
-    this.particles.burst({ x: perch.def.pos.x, y: perch.def.pos.y + 0.6, z: perch.def.pos.z, count: 12, speed: 2, life: 0.6, size: 0.35, color: def.glow, gravity: 0.5 });
+    const tower = this.build.buildTower(typeId, perch, this.cave.scene);
+    if (tower) this.towers.push(tower);
     this.cancelBuildMode();
   }
 
   selectTower(tower) {
-    if (this.selectedTower === tower) return;
-    if (this.selectedTower) this.selectedTower.showRange(false);
-    this.selectedTower = tower;
-    tower.showRange(true);
-    const partner = mergePartner(tower, this.towers);
-    this.panel.select(tower, partner);
+    this.build.selectTower(tower, this.towers);
   }
 
   deselectTower() {
-    if (this.selectedTower) {
-      this.selectedTower.showRange(false);
-      this.selectedTower = null;
-      this.panel.deselect();
-    }
+    this.build.deselectTower();
   }
 
   upgradeTower(tower) {
-    if (!tower || tower.isAlpha) return;
-    const cost = upgradeCost(tower.typeId, tower.level);
-    if (!this.state.spend(cost)) return;
-    tower.upgrade();
-    this.sfx.upgrade();
-    this.particles.burst({ x: tower.pos.x, y: tower.pos.y + 0.8, z: tower.pos.z, count: 10, speed: 1.6, life: 0.7, size: 0.3, color: TOWER_TYPES[tower.typeId].glow, gravity: 0 });
-    const partner = mergePartner(tower, this.towers);
-    this.panel.select(tower, partner);
+    this.build.upgradeTower(tower, this.particles);
   }
 
   mergeTowers(tower, partner) {
-    if (!tower || !partner || !tower.alive || !partner.alive) return;
-    const cost = mergeCost(tower, partner);
-    if (!this.state.spend(cost)) return;
-    // удаляем партнёра
-    this.removeTower(partner);
-    partner.perch.occupied = false;
-    partner.perch.tower = null;
-    // превращаем эту в альфу
-    const alpha = tower.becomeAlpha();
-    this.sfx.merge();
-    this.effects.showBanner(`🦇 ${alpha.name}!`, alpha.passive, alpha.color, 3.5);
-    this.particles.burst({ x: tower.pos.x, y: tower.pos.y + 1, z: tower.pos.z, count: 30, speed: 4, life: 1, size: 0.5, color: alpha.glow, gravity: 0 });
-    this.panel.select(tower, null);
+    this.build.mergeTowers(tower, partner, (t) => this.removeTower(t));
   }
 
   removeTower(tower) {
@@ -738,13 +524,8 @@ export class Game {
 
   sellTower(tower) {
     if (!tower) return;
-    const refund = sellPrice(tower.spent);
-    this.state.addEssence(refund);
-    const perch = this.perches.find(p => p.tower === tower);
-    if (perch) { perch.occupied = false; perch.tower = null; }
+    this.build.sellTower(tower, this.perches);
     this.removeTower(tower);
-    this.panel.deselect();
-    this.sfx.coin();
   }
 
   updateBuildBarCosts() {
@@ -766,7 +547,7 @@ export class Game {
     this.effects.damageNumber(enemy.pos, `+${reward} ◆`, '#ffe9a0');
 
     // босс
-    if (enemy.boss && this.currentBoss === enemy) this.currentBoss = null;
+    if (enemy.boss && this.waves.currentBoss === enemy) this.waves.currentBoss = null;
 
     // паучиха распадается на паучат
     if (enemy.typeId === 'spider') {
@@ -838,30 +619,15 @@ export class Game {
     this.gameTime += dt;
     this.state.tickCombo(dt);
     this.effects.update(dt);
-    this.cameraRig.update(dt);
+    this.cameraCtrl.update(dt);
 
     // спавн волны
-    if (this.waveDelayLeft > 0 && !this.state.spawning && !this.state.won) {
-      this.waveDelayLeft -= dt;
-      this.hud?.setWaveState(this.state.wave + 1, this.waveDelayLeft, wavePreview(this.state.wave + 1));
-      if (this.waveDelayLeft <= 0) this.startWave(this.state.wave + 1);
+    if (this.waves.waveDelayLeft > 0 && !this.state.spawning && !this.state.won) {
+      this.hud?.setWaveState(this.state.wave + 1, this.waves.waveDelayLeft, wavePreview(this.state.wave + 1));
+      if (this.waves.updateWaveDelay(dt)) this.startWave(this.state.wave + 1);
     }
-    if (this.state.spawning) {
-      this.spawnTimer += dt;
-      while (this.spawnIdx < this.spawnQueue.length && this.spawnQueue[this.spawnIdx].t <= this.spawnTimer) {
-        const s = this.spawnQueue[this.spawnIdx++];
-        const enemy = new Enemy(s.type, this.state.wave, this.path, this.cave.scene, this.ctx);
-        this.enemies.push(enemy);
-        if (enemy.boss) {
-          this.currentBoss = enemy;
-          this.hud.showBoss(ENEMY_TYPES[s.type].name, enemy.hp, enemy.maxHp);
-        }
-      }
-      if (this.spawnIdx >= this.spawnQueue.length && this.enemies.length === 0) {
-        this.state.spawning = false;
-        this.waveCleared();
-      }
-    }
+    this.waves.updateSpawning(dt, this.enemies, this.path, this.cave.scene, this.ctx);
+    if (this.waves.checkWaveComplete(this.enemies)) this.waveCleared();
 
     // враги
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -893,10 +659,10 @@ export class Game {
     updateCave(this.cave, this.gameTime);
 
     // бар босса
-    if (this.currentBoss?.alive) {
-      this.hud.updateBoss(this.currentBoss.hp, this.currentBoss.maxHp);
-    } else if (this.currentBoss) {
-      this.currentBoss = null;
+    if (this.waves.currentBoss?.alive) {
+      this.hud.updateBoss(this.waves.currentBoss.hp, this.waves.currentBoss.maxHp);
+    } else if (this.waves.currentBoss) {
+      this.waves.currentBoss = null;
     }
 
     // тряска камеры
@@ -935,78 +701,3 @@ export class Game {
   }
 }
 
-// орбитальная камера
-class CameraRig {
-  constructor(camera, dom) {
-    this.camera = camera;
-    this.target = new THREE.Vector3(0, 1.2, 0);
-    this.yaw = 0.7;
-    this.pitch = 0.52;
-    this.dist = 27;
-    this.dragging = false;
-    this.lastX = 0; this.lastY = 0;
-    this.lastInteract = -10;
-    this.autoRotate = true;
-  }
-  interact() { this.lastInteract = performance.now() / 1000; }
-
-  // Сброс на стандартный обзор — вызывается при построении нового уровня,
-  // чтобы камера не осталась за пределами свежей пещеры.
-  reset() {
-    this.target.set(0, 1.2, 0);
-    this.yaw = 0.7;
-    this.pitch = 0.52;
-    this.dist = 27;
-    this.autoRotate = true;
-  }
-  dragStart(x, y) { this.dragging = true; this.lastX = x; this.lastY = y; }
-  drag(x, y) {
-    this.yaw -= (x - this.lastX) * 0.005;
-    this.pitch = Math.min(1.35, Math.max(0.15, this.pitch + (y - this.lastY) * 0.004));
-    this.lastX = x; this.lastY = y;
-    this.interact();
-  }
-  dragEnd() { this.dragging = false; }
-  zoom(dy) {
-    this.dist = Math.min(44, Math.max(13, this.dist + dy * 0.01 * this.dist * 0.5));
-    this.interact();
-  }
-  zoomByRatio(ratio) {
-    if (!(ratio > 0)) return;
-    this.dist = Math.min(44, Math.max(13, this.dist / ratio));
-    this.interact();
-  }
-  // Сдвиг уровня: движение в экранных пикселях → смещение цели камеры по земле.
-  pan(dx, dy) {
-    this.camera.updateMatrixWorld();
-    const h = (Math.tan(this.camera.fov * Math.PI / 360) * 2 * this.dist) / window.innerHeight;
-    const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0);
-    const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 1);
-    this.target.addScaledVector(right, -dx * h);
-    this.target.addScaledVector(up, -dy * h);
-    // границы уровня — нельзя улететь в пустоту
-    this.target.x = Math.max(-19, Math.min(19, this.target.x));
-    this.target.y = Math.max(-0.5, Math.min(7, this.target.y));
-    this.target.z = Math.max(-19, Math.min(19, this.target.z));
-    this.interact();
-  }
-  update(dt) {
-    const now = performance.now() / 1000;
-    if (!this.dragging && this.autoRotate && now - this.lastInteract > 5) {
-      this.yaw += dt * 0.05;
-    }
-    const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
-    this.camera.position.set(
-      this.target.x + Math.sin(this.yaw) * cp * this.dist,
-      this.target.y + sp * this.dist,
-      this.target.z + Math.cos(this.yaw) * cp * this.dist
-    );
-    this.camera.lookAt(this.target);
-  }
-}
-
-function isDescendant(child, root) {
-  let o = child;
-  while (o && o !== root) o = o.parent;
-  return o === root;
-}
