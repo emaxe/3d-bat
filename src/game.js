@@ -482,8 +482,16 @@ export class Game {
       }
       return;
     }
-    const t = this.build.raycastTower(x, y, this.towers, this.raycaster);
-    if (t) {
+    const cands = this.build.raycastTowerCandidates(x, y, this.towers, this.raycaster);
+    if (cands.length) {
+      // По умолчанию — ближайшая к тапу. Если уже выбрана одна из группы —
+      // повторный тап циклически перебирает остальные (иначе плотные
+      // постройки невозможно выбрать).
+      let t = cands[0];
+      if (this.build.selectedTower && cands.includes(this.build.selectedTower)) {
+        const i = cands.indexOf(this.build.selectedTower);
+        t = cands[(i + 1) % cands.length];
+      }
       this.selectTower(t);
     } else {
       this.deselectTower();

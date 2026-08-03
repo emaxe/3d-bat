@@ -4,6 +4,7 @@
 //  2) CameraController pinch: второй палец ещё не в Map → b undefined
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 
 // --- заглушки браузерных API ---
 function makeCtx() {
@@ -133,4 +134,61 @@ test('managers: CameraController — тап, драг, пинч', () => {
   cc.handlePointerMove(ev(140, 100, { pointerId: 2 }));
   cc.handlePointerUp(ev(140, 100, { pointerId: 2 }));
   cc.handlePointerUp(ev(100, 100, { pointerId: 1 }));
+});
+
+test('managers: BuildSystem — выбор башни по близости к тапу, а не по мешам', () => {
+  const { cave, perches, state, effects, particles, hud, panel } = makeGameParts();
+  const camera = new THREE.PerspectiveCamera(50, 800 / 600, 0.1, 200);
+  const build = new BuildSystem(state, effects, fakeSfx, particles, hud, panel, camera);
+  build.setScene(cave.scene);
+  state.essence = 1000;
+
+  // ближайшая пара насестов — на ней и проверим плотную застройку
+  let a = null, b = null, bestDist = Infinity;
+  for (let i = 0; i < perches.length; i++) {
+    for (let j = i + 1; j < perches.length; j++) {
+      const d = Math.hypot(
+        perches[i].def.pos.x - perches[j].def.pos.x,
+        perches[i].def.pos.z - perches[j].def.pos.z
+      );
+      if (d < bestDist) {bestDist = d; a = perches[i]; b = perches[j];}
+    }
+  }
+  const t1 = build.buildTower('screamer', a, cave.scene);
+  const t2 = build.buildTower('frost', b, cave.scene);
+
+  // камера строго сверху — тап проецируется на землю честно
+  camera.position.set(0, 30, 0.001);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+  const raycaster = new THREE.Raycaster();
+
+  // экранные координаты мировых позиций башен (точечный тап по центру)
+  const W = window.innerWidth, H = window.innerHeight;
+  const toScreen = (pos) => {
+    const v = new THREE.Vector3(pos.x, pos.y, pos.z).project(camera);
+    return { x: (v.x + 1) * 0.5 * W, y: (1 - v.y) * 0.5 * H };
+  };
+  const s1 = toScreen(t1.pos);
+  const s2 = toScreen(t2.pos);
+
+  // тап точно по центру t1 → выбирается t1, даже если меши «пересекаются»
+  assert.equal(build.raycastTower(s1.x, s1.y, [t1, t2], raycaster), t1, 'тап по центру выбирает эту башню');
+  assert.equal(build.raycastTower(s2.x, s2.y, [t1, t2], raycaster), t2, 'тап по центру второй выбирает вторую');
+
+  // тап в середину между ними → кандидаты отсортированы по близости
+  const mid = { x: (s1.x + s2.x) / 2, y: (s1.y + s2.y) / 2 };
+  const cands = build.raycastTowerCandidates(mid.x, mid.y, [t1, t2], raycaster);
+  if (cands.length === 2) {
+    const d1 = Math.hypot(mid.x - s1.x, mid.y - s1.y);
+    const d2 = Math.hypot(mid.x - s2.x, mid.y - s2.y);
+    const expectedFirst = d1 <= d2 ? t1 : t2;
+    assert.equal(cands[0], expectedFirst, 'первый кандидат — ближайший к тапу');
+    assert.equal(cands[1], expectedFirst === t1 ? t2 : t1, 'второй кандидат — соседний');
+  } else {
+    assert.ok(cands.length === 1, 'населёные пункты далеко — хотя бы один кандидат');
+  }
+
+  build.cancelBuildMode(perches);
+  build.reset();
 });

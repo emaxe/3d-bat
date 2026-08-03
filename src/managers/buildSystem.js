@@ -355,22 +355,66 @@ export class BuildSystem {
   }
 
   /**
-   * Raycast на башню
+   * Raycast на башню.
+   *
+   * Проблема старого подхода: брался первый хит луча по мешам — у башен есть
+   * выступающие части (крылья, ауры, тени), поэтому при плотной застройке клик
+   * «перехватывала» соседняя башня. Теперь главный критерий — расстояние от
+   * точки тапа на земле до позиции башни (порог 1.6), а пересечение мешей —
+   * только фолбэк, если луч не попал в радиус ни одной башни.
    */
   raycastTower(x, y, towers, raycaster) {
     const ndc = this.toNdc(x, y);
     raycaster.setFromCamera(ndc, this.camera);
-    
+
+    // точка тапа на уровне центра башен (y ≈ 1.0)
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.0);
+    const groundHit = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(plane, groundHit)) {
+      let best = null;
+      let bestD = 1.6;
+      for (const t of towers) {
+        if (!t.alive) {continue;}
+        const dx = groundHit.x - t.pos.x;
+        const dz = groundHit.z - t.pos.z;
+        const d = Math.sqrt(dx * dx + dz * dz);
+        if (d < bestD) {bestD = d; best = t;}
+      }
+      if (best) {return best;}
+    }
+
+    // фолбэк: классический raycast по мешам
     const meshes = towers.filter(t => t.alive).map(t => t.mesh);
     const hits = raycaster.intersectObjects(meshes, true);
-    
     if (!hits.length) {return null;}
-    
-    return towers.find(t => 
-      t.mesh === hits[0].object || 
-      t.mesh.children.includes(hits[0].object) || 
+    return towers.find(t =>
+      t.mesh === hits[0].object ||
+      t.mesh.children.includes(hits[0].object) ||
       this.isDescendant(hits[0].object, t.mesh)
     ) || null;
+  }
+
+  /**
+   * Кандидаты на выбор: все живые башни в радиусе 2.8 от точки тапа,
+   * отсортированные по близости. Нужно для циклического перебора
+   * (повторный тап по группе башен выбирает следующую).
+   */
+  raycastTowerCandidates(x, y, towers, raycaster) {
+    const ndc = this.toNdc(x, y);
+    raycaster.setFromCamera(ndc, this.camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.0);
+    const groundHit = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(plane, groundHit)) {return [];}
+    const out = [];
+    for (const t of towers) {
+      if (!t.alive) {continue;}
+      const dx = groundHit.x - t.pos.x;
+      const dz = groundHit.z - t.pos.z;
+      const d = Math.sqrt(dx * dx + dz * dz);
+      if (d <= 2.8) {out.push({ t, d });}
+    }
+    out.sort((a, b) => a.d - b.d);
+    return out.map(o => o.t);
   }
 
   /**
