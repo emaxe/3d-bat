@@ -509,7 +509,7 @@ export class Game {
   }
 
   upgradeTower(tower) {
-    this.build.upgradeTower(tower, this.particles);
+    this.build.upgradeTower(tower, this.particles, this.towers);
   }
 
   mergeTowers(tower, partner) {

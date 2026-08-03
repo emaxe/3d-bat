@@ -179,8 +179,11 @@ export class CameraController {
         return 'drag';
       }
     } else if (this.pointers.size === 1) {
-      // Щипок: зум + сдвиг одновременно
-      const [a, b] = [...this.pointers.values()];
+      // Щипок: зум + сдвиг одновременно.
+      // Второй палец ещё не добавлен в this.pointers (addPointer вызывается
+      // после handlePointerDown), поэтому берём его координаты из события.
+      const [a] = [...this.pointers.values()];
+      const b = { x: e.clientX, y: e.clientY };
       this.pinchStart = Math.hypot(a.x - b.x, a.y - b.y);
       this.pinchMoved = false;
       this.pinchPrev = null;

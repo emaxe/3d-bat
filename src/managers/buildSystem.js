@@ -180,9 +180,10 @@ export class BuildSystem {
    * Улучшает башню
    * @param {Tower} tower - башня
    * @param {object} particles - система частиц
+   * @param {Array} towers - все башни (для поиска партнёра слияния)
    * @returns {boolean} успешно ли
    */
-  upgradeTower(tower, particles) {
+  upgradeTower(tower, particles, towers) {
     if (!tower || tower.isAlpha) {return false;}
     
     const cost = upgradeCost(tower.typeId, tower.level);
@@ -204,7 +205,7 @@ export class BuildSystem {
     });
 
     // обновить панель: партнёр для слияния мог появиться/измениться
-    const partner = mergePartner(tower, this.towers);
+    const partner = mergePartner(tower, towers ?? []);
     this.panel?.select(tower, partner);
     return true;
   }
