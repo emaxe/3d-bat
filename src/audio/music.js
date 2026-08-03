@@ -17,9 +17,9 @@ export class Music {
   }
 
   start() {
-    if (this.playing) return;
+    if (this.playing) {return;}
     const ctx = this.sfx.ctx;
-    if (!ctx) return;
+    if (!ctx) {return;}
     this.playing = true;
     this.step = 0;
     this.nextTime = ctx.currentTime + 0.1;
@@ -102,7 +102,7 @@ export class Music {
 
   note(type, freq, dur, peak, t, filterFreq) {
     const ctx = this.sfx.ctx;
-    if (this.sfx.muted) return;
+    if (this.sfx.muted) {return;}
     const o = ctx.createOscillator();
     o.type = type;
     o.frequency.value = freq;

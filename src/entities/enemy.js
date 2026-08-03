@@ -1,17 +1,18 @@
 // Враги: процедурные модели, полёт по пути, эффекты, боссы.
 import * as THREE from 'three';
-import { ENEMY_TYPES, scaledHp, scaledReward, effectiveSpeed, damageTaken, EFFECT_DEFS } from '../core/enemies.js';
+
+import { ENEMY_TYPES, scaledHp, scaledReward, effectiveSpeed, damageTaken } from '../core/enemies.js';
 import { CRYSTAL } from '../core/layout.js';
 import { wingTexture, glowTexture, shadowTexture } from '../world/textures.js';
 
 const wingTexCache = new Map();
 function wingTex(color) {
-  if (!wingTexCache.has(color)) wingTexCache.set(color, wingTexture(color));
+  if (!wingTexCache.has(color)) {wingTexCache.set(color, wingTexture(color));}
   return wingTexCache.get(color);
 }
 const glowCache = new Map();
 function glowTex(color) {
-  if (!glowCache.has(color)) glowCache.set(color, glowTexture(color, '#ffffff'));
+  if (!glowCache.has(color)) {glowCache.set(color, glowTexture(color, '#ffffff'));}
   return glowCache.get(color);
 }
 let shadowTex = null;
@@ -338,7 +339,7 @@ export class Enemy {
     this.cloaked = worldCtx.cloakAll ? true : def.cloaked;
     this.worldCtx = worldCtx;
     this.ranged = def.ranged || null;
-    if (this.ranged) this.rangedCd = 0;
+    if (this.ranged) {this.rangedCd = 0;}
     this.healAura = def.healAura || 0;
     this.healAuraR = def.healAuraR || 0;
     this.healTick = 0;
@@ -356,7 +357,7 @@ export class Enemy {
     this.bodyMat = this.mesh.userData.body?.material;
 
     // тень
-    if (!shadowTex) shadowTex = shadowTexture();
+    if (!shadowTex) {shadowTex = shadowTexture();}
     this.shadow = new THREE.Sprite(new THREE.SpriteMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     this.shadow.scale.setScalar(this.r * 1.9 * this.scale);
     this.shadow.position.y = -0.1;
@@ -389,7 +390,7 @@ export class Enemy {
   get effSpeed() {
     const slow = this.effects.slow ? this.effects.slow.mult : 0;
     let s = effectiveSpeed(this.baseSpeed, slow);
-    if (this.worldCtx.moonSpeedMul) s *= this.worldCtx.moonSpeedMul;
+    if (this.worldCtx.moonSpeedMul) {s *= this.worldCtx.moonSpeedMul;}
     return s;
   }
 
@@ -404,31 +405,31 @@ export class Enemy {
 
   updateCloakVisual() {
     const op = this.cloaked && !this.effects.revealed ? 0.16 : 1;
-    if (this.bodyMat) this.bodyMat.opacity = op;
-    for (const w of this.wings) w.material.opacity = op * 0.85;
+    if (this.bodyMat) {this.bodyMat.opacity = op;}
+    for (const w of this.wings) {w.material.opacity = op * 0.85;}
     this.shadow.material.opacity = op * 0.6;
   }
 
   update(dt) {
-    if (!this.alive) return;
+    if (!this.alive) {return;}
     this.t += dt;
     const fx = this.effects;
 
     // эффекты по времени
-    if (fx.slow) { fx.slow.t -= dt; if (fx.slow.t <= 0) fx.slow = null; }
+    if (fx.slow) { fx.slow.t -= dt; if (fx.slow.t <= 0) {fx.slow = null;} }
     if (fx.revealed > 0) {
       fx.revealed -= dt;
       this.revealRing.material.opacity = Math.max(0, fx.revealed / 4) * 0.9;
-      if (fx.revealed <= 0) this.updateCloakVisual();
+      if (fx.revealed <= 0) {this.updateCloakVisual();}
     }
-    if (fx.vulnT > 0) { fx.vulnT -= dt; if (fx.vulnT <= 0) fx.vuln = 0; }
+    if (fx.vulnT > 0) { fx.vulnT -= dt; if (fx.vulnT <= 0) {fx.vuln = 0;} }
     let dot = 0;
-    if (fx.poisonT > 0) { fx.poisonT -= dt; dot += fx.poison; if (fx.poisonT <= 0) fx.poison = 0; }
-    if (fx.burnT > 0) { fx.burnT -= dt; dot += fx.burn; if (fx.burnT <= 0) fx.burn = 0; }
-    if (dot > 0) this.takeDamage(dot * dt, { dot: true });
+    if (fx.poisonT > 0) { fx.poisonT -= dt; dot += fx.poison; if (fx.poisonT <= 0) {fx.poison = 0;} }
+    if (fx.burnT > 0) { fx.burnT -= dt; dot += fx.burn; if (fx.burnT <= 0) {fx.burn = 0;} }
+    if (dot > 0) {this.takeDamage(dot * dt, { dot: true });}
 
     // регенерация
-    if (this.heal > 0 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.heal * dt);
+    if (this.heal > 0 && this.hp < this.maxHp) {this.hp = Math.min(this.maxHp, this.hp + this.heal * dt);}
 
     // движение
     if (fx.lure) {
@@ -439,13 +440,13 @@ export class Enemy {
         this.pos.add(dir.scale(this.effSpeed * dt));
       }
       fx.lure.t -= dt;
-      if (fx.lure.t <= 0) fx.lure = null;
+      if (fx.lure.t <= 0) {fx.lure = null;}
     } else if (this.ranged && this.progress > 2 && this.pos.dist(CRYSTAL.pos) <= this.ranged.dist) {
       // стрелок: встал на дистанции и бьёт по кристаллу
       this.rangedCd -= dt;
       if (this.rangedCd <= 0) {
         this.rangedCd = this.ranged.cd;
-        if (this.worldCtx.onCrystalDamage) this.worldCtx.onCrystalDamage(this.ranged.dmg, this.pos);
+        if (this.worldCtx.onCrystalDamage) {this.worldCtx.onCrystalDamage(this.ranged.dmg, this.pos);}
         if (this.worldCtx.particles) {
           this.worldCtx.particles.burst({ x: this.pos.x, y: this.pos.y, z: this.pos.z, count: 6, speed: 3, life: 0.45, size: 0.22, color: '#ffb84a', gravity: 0 });
         }
@@ -486,7 +487,7 @@ export class Enemy {
     this.mesh.position.y += Math.sin(this.t * 3 + this.progress * 0.5) * 0.04 * this.scale;
     // пульс ядра регенератора
     const core = this.mesh.userData.core;
-    if (core) core.scale.setScalar(1 + Math.sin(this.t * 5) * 0.25);
+    if (core) {core.scale.setScalar(1 + Math.sin(this.t * 5) * 0.25);}
     // спутники роя вьются
     const sats = this.mesh.userData.satellites;
     if (sats) { sats.rotation.z += dt * 5; sats.rotation.x += dt * 1.6; }
@@ -498,10 +499,10 @@ export class Enemy {
     }
     // нимб жреца крутится
     const halo = this.mesh.userData.halo;
-    if (halo) halo.rotation.z += dt * 1.5;
+    if (halo) {halo.rotation.z += dt * 1.5;}
     // ядовитый пузырёк паука пульсирует
     const venom = this.mesh.userData.venom;
-    if (venom) venom.scale.setScalar(1 + Math.sin(this.t * 4) * 0.18);
+    if (venom) {venom.scale.setScalar(1 + Math.sin(this.t * 4) * 0.18);}
     // HP-бар: цвет от зелёного к красному
     const f = this.hp / this.maxHp;
     const hidden = this.cloaked && !this.effects.revealed;
@@ -540,8 +541,8 @@ export class Enemy {
 
   applySlow(mult, dur) {
     const fx = this.effects;
-    if (!fx.slow || fx.slow.mult < mult) fx.slow = { mult, t: dur };
-    else fx.slow.t = Math.max(fx.slow.t, dur);
+    if (!fx.slow || fx.slow.mult < mult) {fx.slow = { mult, t: dur };}
+    else {fx.slow.t = Math.max(fx.slow.t, dur);}
   }
 
   applyPoison(dps, dur) {
@@ -563,7 +564,7 @@ export class Enemy {
   }
 
   takeDamage(amount, opts = {}) {
-    if (!this.alive) return 0;
+    if (!this.alive) {return 0;}
     const dmg = opts.dot ? amount : damageTaken(amount, this.armor, this.vulnBonus);
     this.hp -= dmg;
     if (this.hp <= 0) {
@@ -574,7 +575,7 @@ export class Enemy {
   }
 
   die() {
-    if (!this.alive || this.dead) return;
+    if (!this.alive || this.dead) {return;}
     this.alive = false;
     this.dead = true;
     const ctx = this.worldCtx;
@@ -585,8 +586,8 @@ export class Enemy {
   dispose() {
     this.mesh.removeFromParent();
     this.mesh.traverse(o => {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material) { const m = o.material; if (Array.isArray(m)) m.forEach(x => x.dispose()); else m.dispose(); }
+      if (o.geometry) {o.geometry.dispose();}
+      if (o.material) { const m = o.material; if (Array.isArray(m)) {m.forEach(x => x.dispose());} else {m.dispose();} }
     });
   }
 }

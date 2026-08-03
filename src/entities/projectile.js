@@ -1,11 +1,12 @@
 // Снаряды: болты, огненные шары, пульсы. Гоминг по цели, взрывы по площади.
 import * as THREE from 'three';
+
 import { glowTexture } from '../world/textures.js';
 
 let sharedGlow = null;
 function glowMap(color) {
-  if (!sharedGlow) sharedGlow = new Map();
-  if (!sharedGlow.has(color)) sharedGlow.set(color, glowTexture(color, '#ffffff'));
+  if (!sharedGlow) {sharedGlow = new Map();}
+  if (!sharedGlow.has(color)) {sharedGlow.set(color, glowTexture(color, '#ffffff'));}
   return sharedGlow.get(color);
 }
 
@@ -50,7 +51,7 @@ export class Projectile {
 
   // цель — точка (для пульсов цель двигается вперёд)
   update(dt) {
-    if (this.dead) return;
+    if (this.dead) {return;}
     if (this.kind === 'pulse') {
       this.radius += dt * this.speed;
       this.glow.scale.setScalar(this.radius * 1.4);
@@ -73,14 +74,14 @@ export class Projectile {
   }
 
   hit() {
-    if (this.dead) return;
+    if (this.dead) {return;}
     this.dead = true;
-    if (this.onHit) this.onHit(this);
+    if (this.onHit) {this.onHit(this);}
     this.dispose();
   }
 
   kill() {
-    if (this.dead) return;
+    if (this.dead) {return;}
     this.dead = true;
     this.dispose();
   }
@@ -116,13 +117,13 @@ export class PulseRing {
   }
 
   update(dt) {
-    if (this.dead) return;
+    if (this.dead) {return;}
     this.radius += this.speed * dt;
     this.mesh.scale.setScalar(this.radius);
     this.mesh.material.opacity = Math.max(0, 0.9 * (1 - this.radius / this.maxRadius));
     if (!this.done && this.radius >= this.maxRadius * 0.55) {
       this.done = true;
-      if (this.onExpand) this.onExpand(this.radius);
+      if (this.onExpand) {this.onExpand(this.radius);}
     }
     if (this.radius >= this.maxRadius) {
       this.dead = true;

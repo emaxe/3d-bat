@@ -1,13 +1,15 @@
 // Башни-стражи: летучие мыши. Стрельба, эффект стаи, апгрейды, альфа-формы.
 import * as THREE from 'three';
-import { TOWER_TYPES, towerStats, upgradeCost, pickTarget, flockBonus, MAX_LEVEL, FLOCK_RADIUS } from '../core/towers.js';
+
+import { TOWER_TYPES, towerStats, upgradeCost, pickTarget, flockBonus, MAX_LEVEL } from '../core/towers.js';
 import { EFFECT_DEFS } from '../core/enemies.js';
-import { wingTexture, glowTexture, shadowTexture, ringTexture } from '../world/textures.js';
+import { wingTexture, glowTexture, shadowTexture } from '../world/textures.js';
+
 import { Projectile, PulseRing } from './projectile.js';
 
 const wingCache = new Map();
 function wings(color, scale) {
-  if (!wingCache.has(color)) wingCache.set(color, wingTexture(color));
+  if (!wingCache.has(color)) {wingCache.set(color, wingTexture(color));}
   const tex = wingCache.get(color);
   const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
   const geo = new THREE.PlaneGeometry(1.1, 0.55, 1, 1);
@@ -212,7 +214,7 @@ export class Tower {
     this.currentTarget = null;
 
     // тень
-    if (!shadowTex) shadowTex = shadowTexture();
+    if (!shadowTex) {shadowTex = shadowTexture();}
     this.shadow = new THREE.Sprite(new THREE.SpriteMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     this.shadow.scale.setScalar(0.9);
     this.shadow.position.y = -0.02;
@@ -237,8 +239,8 @@ export class Tower {
   effectiveDamage(ctx) {
     let d = this.damage;
     d *= 1 + flockBonus(this.typeId, ctx.towers, this.pos);
-    if (ctx.moonTowerMul) d *= ctx.moonTowerMul;
-    if (ctx.towerDmgMul) d *= ctx.towerDmgMul; // прокачка кампании
+    if (ctx.moonTowerMul) {d *= ctx.moonTowerMul;}
+    if (ctx.towerDmgMul) {d *= ctx.towerDmgMul;} // прокачка кампании
     return d;
   }
 
@@ -256,7 +258,7 @@ export class Tower {
   }
 
   upgrade() {
-    if (this.level >= MAX_LEVEL) return false;
+    if (this.level >= MAX_LEVEL) {return false;}
     const cost = upgradeCost(this.typeId, this.level);
     this.level++;
     this.spent += cost;
@@ -270,7 +272,7 @@ export class Tower {
     const a = TOWER_TYPES[this.typeId].alpha;
     const old = this.mesh;
     old.removeFromParent();
-    old.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    old.traverse(o => { if (o.geometry) {o.geometry.dispose();} if (o.material) {o.material.dispose();} });
     this.mesh = buildTowerMesh(this.typeId, this.level, true);
     this.mesh.position.copy(this.pos);
     this.mesh.position.y += 0.35;
@@ -296,7 +298,7 @@ export class Tower {
   }
 
   update(dt, ctx) {
-    if (!this.alive) return;
+    if (!this.alive) {return;}
     this.t += dt;
     this.cooldown -= dt;
 
@@ -326,7 +328,7 @@ export class Tower {
       const a = TOWER_TYPES[this.typeId].alpha;
       if (this.typeId === 'frost' && a && Math.floor(this.t * 2) !== Math.floor((this.t - dt) * 2)) {
         for (const e of ctx.enemies) {
-          if (e.alive && e.pos.distSq(this.pos) <= 6 * 6) e.applySlow(0.5, 0.8);
+          if (e.alive && e.pos.distSq(this.pos) <= 6 * 6) {e.applySlow(0.5, 0.8);}
         }
       }
       if (this.typeId === 'echo' && a && Math.floor(this.t * 1.5) !== Math.floor((this.t - dt) * 1.5)) {
@@ -367,7 +369,7 @@ export class Tower {
   }
 
   rotateToward(ctx) {
-    if (!this.currentTarget?.alive) return;
+    if (!this.currentTarget?.alive) {return;}
     const tpos = this.currentTarget.pos;
     this.mesh.lookAt(tpos.x, this.mesh.position.y, tpos.z);
   }
@@ -393,7 +395,7 @@ export class Tower {
     });
     ctx.projectiles.push(p);
     ctx.particles.spawn({ x: this.mesh.position.x, y: this.mesh.position.y, z: this.mesh.position.z, vx: 0, vy: 0.4, vz: 0, life: 0.15, size: 0.5, color: def.glow, gravity: 0 });
-    if (ctx.sfx) ctx.sfx.shoot(this.typeId);
+    if (ctx.sfx) {ctx.sfx.shoot(this.typeId);}
   }
 
   onProjectileHit(ctx, proj, target) {
@@ -401,22 +403,22 @@ export class Tower {
     if (proj.splash > 0) {
       // AoE по площади
       for (const e of ctx.enemies) {
-        if (!e.alive) continue;
+        if (!e.alive) {continue;}
         if (e.pos.distSq(proj.pos) <= proj.splash * proj.splash) {
           e.takeDamage(dmg * (e === target ? 1 : 0.6));
-          if (this.isAlpha && e !== target) e.applyBurn(12, 3);
+          if (this.isAlpha && e !== target) {e.applyBurn(12, 3);}
         }
       }
       ctx.particles.burst({ x: proj.pos.x, y: proj.pos.y, z: proj.pos.z, count: 14, speed: 4, life: 0.5, size: 0.4, color: '#ff9a2a', gravity: 1.2 });
-      if (ctx.sfx) ctx.sfx.explosion();
+      if (ctx.sfx) {ctx.sfx.explosion();}
     } else {
       const real = target.takeDamage(dmg);
-      if (real > 0) ctx.damageNumber(target.pos, Math.round(real), proj.color, target.boss);
+      if (real > 0) {ctx.damageNumber(target.pos, Math.round(real), proj.color, target.boss);}
       ctx.particles.burst({ x: target.pos.x, y: target.pos.y, z: target.pos.z, count: 5, speed: 2.5, life: 0.35, size: 0.25, color: proj.color, gravity: 0 });
-      if (proj.slow > 0) target.applySlow(proj.slow, proj.slowDur);
-      if (proj.poison > 0) target.applyPoison(proj.poison, 4);
-      if (proj.vuln > 0) target.applyVuln(proj.vuln, proj.vulnDur);
-      if (ctx.sfx) ctx.sfx.hit(this.typeId);
+      if (proj.slow > 0) {target.applySlow(proj.slow, proj.slowDur);}
+      if (proj.poison > 0) {target.applyPoison(proj.poison, 4);}
+      if (proj.vuln > 0) {target.applyVuln(proj.vuln, proj.vulnDur);}
+      if (ctx.sfx) {ctx.sfx.hit(this.typeId);}
       // цепная молния альфа-визгуна
       if (proj.chain > 0 && target.alive) {
         const chained = ctx.enemies
@@ -440,19 +442,19 @@ export class Tower {
       color: def.color,
       onExpand: (r) => {
         for (const e of ctx.enemies) {
-          if (!e.alive) continue;
+          if (!e.alive) {continue;}
           if (e.pos.distSq(this.pos) <= r * r) {
             e.reveal(4);
             e.applyVuln(EFFECT_DEFS.vuln.bonus * (1 + this.level * 0.2), EFFECT_DEFS.vuln.dur);
             const real = e.takeDamage(dmg * 0.5);
-            if (real > 0) ctx.damageNumber(e.pos, Math.round(real), def.color);
+            if (real > 0) {ctx.damageNumber(e.pos, Math.round(real), def.color);}
           }
         }
       },
     });
     ctx.pulses.push(pulse);
     ctx.particles.burst({ x: this.mesh.position.x, y: this.mesh.position.y, z: this.mesh.position.z, count: 10, speed: 2, life: 0.6, size: 0.3, color: def.glow, gravity: 0 });
-    if (ctx.sfx) ctx.sfx.echo();
+    if (ctx.sfx) {ctx.sfx.echo();}
   }
 
   fireLantern(ctx) {
@@ -465,26 +467,26 @@ export class Tower {
       color: def.color,
       onExpand: (r) => {
         for (const e of ctx.enemies) {
-          if (!e.alive || e.boss) continue;
+          if (!e.alive || e.boss) {continue;}
           if (e.pos.distSq(this.pos) <= r * r && !e.effects.lure) {
             e.effects.lure = { t: dur, pos: this.pos.clone() };
             // альфа-сирена замедляет приманенных
-            if (this.isAlpha) e.applySlow(0.35, 1.5);
+            if (this.isAlpha) {e.applySlow(0.35, 1.5);}
             ctx.particles.burst({ x: e.pos.x, y: e.pos.y, z: e.pos.z, count: 4, speed: 1.5, life: 0.5, size: 0.3, color: def.glow, gravity: 0 });
           }
         }
       },
     });
     ctx.pulses.push(pulse);
-    if (ctx.sfx) ctx.sfx.lantern();
+    if (ctx.sfx) {ctx.sfx.lantern();}
   }
 
   dispose() {
     this.alive = false;
     this.mesh.removeFromParent();
     this.mesh.traverse(o => {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material) o.material.dispose();
+      if (o.geometry) {o.geometry.dispose();}
+      if (o.material) {o.material.dispose();}
     });
   }
 }

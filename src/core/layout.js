@@ -48,7 +48,7 @@ const P2 = [
   [0.0, 0.9, 1.0],
 ];
 
-const toV = (arr) => arr.map(p => new Vec3(p[0], p[1], p[2]));
+const _toV = (arr) => arr.map(p => new Vec3(p[0], p[1], p[2])); // eslint-disable-line no-unused-vars
 
 const CRYSTAL_POS = new Vec3(0, 0.9, 0);
 const ENTRANCE_POS = new Vec3(0, 3.0, -18);

@@ -22,7 +22,7 @@ export class GameState extends Emitter {
   canAfford(cost) { return this.essence >= cost; }
 
   spend(cost) {
-    if (!this.canAfford(cost)) return false;
+    if (!this.canAfford(cost)) {return false;}
     this.essence -= cost;
     this.emit('essence', this.essence);
     return true;
@@ -34,7 +34,7 @@ export class GameState extends Emitter {
   }
 
   damageCrystal(dmg) {
-    if (this.over) return;
+    if (this.over) {return;}
     this.crystalHp = Math.max(0, this.crystalHp - dmg);
     this.emit('hp', this.crystalHp, this.maxHp);
     if (this.crystalHp <= 0) {
@@ -46,7 +46,7 @@ export class GameState extends Emitter {
   }
 
   healCrystal(amount) {
-    if (this.over) return;
+    if (this.over) {return;}
     this.crystalHp = Math.min(this.maxHp, this.crystalHp + amount);
     this.emit('hp', this.crystalHp, this.maxHp);
   }
@@ -77,7 +77,7 @@ export class GameState extends Emitter {
   tickCombo(dt) {
     if (this.comboTimer > 0) {
       this.comboTimer -= dt;
-      if (this.comboTimer <= 0) this.resetCombo();
+      if (this.comboTimer <= 0) {this.resetCombo();}
     }
   }
 

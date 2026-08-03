@@ -8,7 +8,7 @@ export class Sfx {
 
   // Вызывается по первому жесту пользователя.
   init() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    if (this.ctx) { if (this.ctx.state === 'suspended') {this.ctx.resume();} return; }
     const Ctx = window.AudioContext || window.webkitAudioContext;
     this.ctx = new Ctx();
     this.master = this.ctx.createGain();
@@ -18,13 +18,13 @@ export class Sfx {
     const len = this.ctx.sampleRate * 1.2;
     const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    for (let i = 0; i < len; i++) {d[i] = Math.random() * 2 - 1;}
     this.noiseBuf = buf;
   }
 
   setMuted(m) {
     this.muted = m;
-    if (this.master) this.master.gain.value = m ? 0 : 0.5;
+    if (this.master) {this.master.gain.value = m ? 0 : 0.5;}
   }
 
   _env(dur, peak = 0.5, attack = 0.005) {
@@ -36,12 +36,12 @@ export class Sfx {
   }
 
   _osc(type, f0, f1, dur, peak, delay = 0) {
-    if (!this.ctx || this.muted) return;
+    if (!this.ctx || this.muted) {return;}
     const o = this.ctx.createOscillator();
     o.type = type;
     const t0 = this.ctx.currentTime + delay;
     o.frequency.setValueAtTime(f0, t0);
-    if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
+    if (f1 && f1 !== f0) {o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);}
     const g = this._env(dur, peak);
     o.connect(g).connect(this.master);
     o.start(t0);
@@ -49,7 +49,7 @@ export class Sfx {
   }
 
   _noise(dur, filterFreq, peak, type = 'lowpass', delay = 0) {
-    if (!this.ctx || this.muted) return;
+    if (!this.ctx || this.muted) {return;}
     const src = this.ctx.createBufferSource();
     src.buffer = this.noiseBuf;
     src.loop = true;
@@ -74,9 +74,9 @@ export class Sfx {
     this._osc('square', f0, f1, 0.07, 0.1);
   }
   hit(type) {
-    if (type === 'frost') this._osc('sine', 1400, 900, 0.06, 0.1);
+    if (type === 'frost') {this._osc('sine', 1400, 900, 0.06, 0.1);}
     else if (type === 'spore') { this._osc('sine', 200, 90, 0.1, 0.12); }
-    else this._osc('square', 300, 150, 0.05, 0.08);
+    else {this._osc('square', 300, 150, 0.05, 0.08);}
   }
   explosion() { this._noise(0.4, 500, 0.4); this._osc('sine', 120, 40, 0.35, 0.4); }
   echo() { this._osc('sine', 2200, 400, 0.3, 0.15); this._osc('sine', 2400, 500, 0.3, 0.1, 0.05); }

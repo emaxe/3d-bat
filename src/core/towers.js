@@ -105,7 +105,7 @@ export function towerStats(typeId, level) {
 
 export function upgradeCost(typeId, level) {
   const t = TOWER_TYPES[typeId];
-  if (!t.upgradeCost) return Infinity;
+  if (!t.upgradeCost) {return Infinity;}
   return t.upgradeCost[level - 1] ?? Infinity; // level 1->2, 2->3
 }
 
@@ -115,14 +115,14 @@ export function pickTarget(enemies, origin, range, preferRevealed = true) {
   let best = null, bestProg = -Infinity;
   let bestRevealed = null, bestRevealedProg = -Infinity;
   for (const e of enemies) {
-    if (!e.alive || e.dead) continue;
+    if (!e.alive || e.dead) {continue;}
     const d = e.pos.distSq(origin);
-    if (d > range * range) continue;
+    if (d > range * range) {continue;}
     const revealed = !e.cloaked || e.effects.revealed > 0;
     if (revealed && e.progress > bestRevealedProg) { bestRevealed = e; bestRevealedProg = e.progress; }
     if (e.progress > bestProg) { best = e; bestProg = e.progress; }
   }
-  if (preferRevealed && bestRevealed) return bestRevealed;
+  if (preferRevealed && bestRevealed) {return bestRevealed;}
   return best;
 }
 
@@ -130,25 +130,25 @@ export function pickTarget(enemies, origin, range, preferRevealed = true) {
 export function flockBonus(typeId, towers, origin) {
   let n = 0;
   for (const t of towers) {
-    if (t.typeId === typeId && t !== origin && t.alive && t.pos.distSq(origin) <= FLOCK_RADIUS * FLOCK_RADIUS) n++;
+    if (t.typeId === typeId && t !== origin && t.alive && t.pos.distSq(origin) <= FLOCK_RADIUS * FLOCK_RADIUS) {n++;}
   }
   return Math.min(n, FLOCK_MAX) * FLOCK_BONUS;
 }
 
 // Проверка возможности слияния двух башен.
 export function canMerge(a, b) {
-  if (!a || !b) return false;
-  if (a === b || a.typeId !== b.typeId || a.dead || b.dead) return false;
+  if (!a || !b) {return false;}
+  if (a === b || a.typeId !== b.typeId || a.dead || b.dead) {return false;}
   const t = TOWER_TYPES[a.typeId];
-  if (!t.alpha) return false;
-  if (a.level < MAX_LEVEL || b.level < MAX_LEVEL) return false;
+  if (!t.alpha) {return false;}
+  if (a.level < MAX_LEVEL || b.level < MAX_LEVEL) {return false;}
   return a.pos.distSq(b.pos) <= MERGE_RADIUS * MERGE_RADIUS;
 }
 
 // Найти кандидата на слияние для башни (первого подходящего соседа).
 export function mergePartner(tower, towers) {
   for (const t of towers) {
-    if (canMerge(tower, t)) return t;
+    if (canMerge(tower, t)) {return t;}
   }
   return null;
 }

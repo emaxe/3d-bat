@@ -5,7 +5,9 @@ export class Emitter {
     this._handlers = new Map();
   }
   on(evt, fn) {
-    if (!this._handlers.has(evt)) this._handlers.set(evt, new Set());
+    if (!this._handlers.has(evt)) {
+      this._handlers.set(evt, new Set());
+    }
     this._handlers.get(evt).add(fn);
     return () => this.off(evt, fn);
   }
@@ -14,8 +16,14 @@ export class Emitter {
   }
   emit(evt, ...args) {
     const set = this._handlers.get(evt);
-    if (!set) return;
-    for (const fn of [...set]) fn(...args);
+    if (!set) {
+      return;
+    }
+    for (const fn of [...set]) {
+      fn(...args);
+    }
   }
-  clear() { this._handlers.clear(); }
+  clear() {
+    this._handlers.clear();
+  }
 }

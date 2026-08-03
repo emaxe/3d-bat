@@ -59,7 +59,7 @@ export class ParticleSystem {
 
   spawn(o) {
     const p = this.pool[this.live];
-    if (!p) return; // пул полон
+    if (!p) {return;} // пул полон
     this.live++;
     p.alive = true;
     p.x = o.x; p.y = o.y; p.z = o.z;
@@ -97,7 +97,7 @@ export class ParticleSystem {
     for (let i = 0; i < this.live; i++) {
       const p = this.pool[i];
       p.life -= dt;
-      if (p.life <= 0) continue; // мёртвая — слот будет перезаписан
+      if (p.life <= 0) {continue;} // мёртвая — слот будет перезаписан
       if (w !== i) { // компактизация: живые объекты к началу пула
         const t = this.pool[w];
         this.pool[w] = p;

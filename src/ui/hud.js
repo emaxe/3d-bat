@@ -142,7 +142,7 @@ export class Hud {
   // Всплывающее сообщение (тост) — для подсказок и предупреждений.
   showToast(msg, color = '#ffe9a0', ms = 2200) {
     const wrap = document.getElementById('toasts');
-    if (!wrap) return;
+    if (!wrap) {return;}
     const t = document.createElement('div');
     t.className = 'toast';
     t.style.borderColor = color;
@@ -162,7 +162,7 @@ export function buildBuildBar(ids, discount, onSelect) {
   bar.innerHTML = '';
   for (const id of ids) {
     const def = TOWER_TYPES[id];
-    if (!def) continue;
+    if (!def) {continue;}
     const cost = Math.round(def.cost * (1 - (discount ?? 0)));
     const card = document.createElement('button');
     card.className = 'build-card';
