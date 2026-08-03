@@ -15,6 +15,17 @@ A 3D tower defense game set in a mystical cave: defend the Great Crystal from wa
 - 📱 Mobile-friendly: multi-touch gestures (tap/drag/zoom/two-finger pause), adaptive resolution
 - 🧪 Pure-JS core (`src/core/`) with no three.js/DOM dependencies — unit-tested under Node (`node --test`), desktop-portable
 
+## How to play
+
+- Build towers on glowing perches along the path to stop the creatures from reaching the Crystal
+- Same-type towers adjacent to an alpha (level-3) tower merge into a **super tower**
+- Moon phases («Кровавая луна») change wave behavior — watch the sky
+- Combo kills (within 3s) multiply essence rewards
+
+**Controls:**
+- Desktop: LMB build/select, wheel zoom, MMB/WASD pan, Esc cancel, Space pause, Q speed, N next wave, 1–7 tower hotkeys
+- Mobile: tap = build/select, drag = rotate, pinch = zoom, two-finger tap = pause
+
 ## Tech
 
 - [three.js](https://threejs.org/) r185 — WebGL rendering
