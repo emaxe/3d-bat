@@ -29,9 +29,11 @@ export class Game {
     this.container = container;
     // мобильные GPU слабее: меньше пикселей, без MSAA, без форсированного high-performance
     this.isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-    // 1.25 на тач — заметно меньше VRAM под буферы канваса (слабые GPU телефонов
-    // теряют WebGL-контекст от переполнения памяти); десктоп — 2.
+    // На телефонах стартуем с 1.0: буферы кадра вдвое меньше, чем при 1.25 —
+    // слабые GPU теряют WebGL-контекст от переполнения памяти. Адаптивный
+    // рендерер поднимет разрешение до 1.25 сам, если кадры быстрые.
     this.maxPixelRatio = this.isTouch ? 1.25 : 2;
+    this.startPixelRatio = this.isTouch ? 1.0 : 2;
     this.renderer = new THREE.WebGLRenderer({
       antialias: !this.isTouch,
       powerPreference: this.isTouch ? 'default' : 'high-performance',
@@ -39,7 +41,7 @@ export class Game {
     // кинематографичный тонмаппинг: мягкие блики, глубокие тени
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.maxPixelRatio));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.startPixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     container.appendChild(this.renderer.domElement);
 
@@ -53,6 +55,11 @@ export class Game {
           filename: 'webgl', lineno: 0,
         }));
       } catch { /* оверлей недоступен */ }
+    });
+    // Контекст вернулся (браузер освободил память) — перезапускаем начисто:
+    // three.js восстановит контекст, но текстуры/состояние могли протухнуть.
+    this.renderer.domElement.addEventListener('webglcontextrestored', () => {
+      setTimeout(() => location.reload(), 400);
     });
 
     this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 120);
