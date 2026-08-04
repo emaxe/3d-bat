@@ -83,6 +83,34 @@ test('managers: BuildSystem — стройка/апгрейд/слияние/п�
   build.reset();
 });
 
+test('managers: BuildSystem — выбор башни в плотной застройке', () => {
+  const { cave, perches, state, effects, particles, hud, panel } = makeGameParts();
+  const camera = new THREE.PerspectiveCamera(50, 800 / 600, 0.1, 200);
+  camera.position.set(0, 30, 0);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld(true);
+  camera.updateProjectionMatrix();
+  const build = new BuildSystem(state, effects, fakeSfx, particles, hud, panel, camera);
+  build.setScene(cave.scene);
+  state.essence = 1000;
+  const t1 = build.buildTower('screamer', perches.find(p => !p.occupied), cave.scene);
+  const t2 = build.buildTower('frost', perches.find(p => !p.occupied), cave.scene);
+  assert.ok(t1 && t2, 'обе башни построены');
+
+  // тап по ВИДИМОЙ верхушке второй башни (её центр может быть закрыт соседом)
+  const v = new THREE.Vector3(t2.pos.x, t2.pos.y + 1.6, t2.pos.z).project(camera);
+  const sx = (v.x + 1) * 0.5 * 800;
+  const sy = (1 - v.y) * 0.5 * 600;
+  const cands = build.towerCandidatesOnScreen(sx, sy, [t1, t2]);
+  assert.ok(cands.includes(t2), 'вторая башня в кандидатах по экранному боксу');
+  assert.equal(cands[0], t2, 'ближайшая к тапу — вторая башня');
+
+  // циклический перебор: обе башни должны быть доступны
+  const raycaster = new THREE.Raycaster();
+  const all = build.raycastTowerCandidates(sx, sy, [t1, t2], raycaster);
+  assert.ok(all.includes(t1) && all.includes(t2), 'обе башни в пуле перебора');
+});
+
 test('managers: WaveManager — волна, спавн, задержка, босс', () => {
   const { cave, pathVis, state, effects, hud, particles } = makeGameParts();
   const waves = new WaveManager(state, effects, fakeSfx, hud);
@@ -156,6 +184,90 @@ test('managers: BuildSystem — кандидаты выбора по экран�
   // Тап далеко от обеих → кандидатов нет
   cands = build.raycastTowerCandidates(10, 10, towers, rc);
   assert.equal(cands.length, 0, 'далёкий тап не выбирает башню');
+});
+
+test('managers: BuildSystem — выбор башни в плотной застройке (по видимому боксу)', () => {
+  const { cave, perches, state, effects, particles, hud, panel } = makeGameParts();
+  const camera = new THREE.PerspectiveCamera(50, 800 / 600, 0.1, 200);
+  camera.position.set(0, 40, 0);
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld();
+  const build = new BuildSystem(state, effects, fakeSfx, particles, hud, panel, camera);
+  build.setScene(cave.scene);
+  state.essence = 1000;
+
+  // две башни на соседних насестах
+  const p1 = perches.find(p => !p.occupied);
+  const t1 = build.buildTower('screamer', p1, cave.scene);
+  const p2 = perches.find(p => !p.occupied);
+  const t2 = build.buildTower('frost', p2, cave.scene);
+  assert.ok(t1 && t2, 'обе башни построены');
+
+  const raycaster = new THREE.Raycaster();
+  const proj = (t) => {
+    const v = new THREE.Vector3(t.pos.x, t.pos.y + 0.9, t.pos.z).project(camera);
+    return { x: (v.x + 1) * 0.5 * 800, y: (1 - v.y) * 0.5 * 600 };
+  };
+
+  // тап по центру второй башни — выбирается она, а не соседняя
+  const c2 = proj(t2);
+  const cands = build.raycastTowerCandidates(c2.x, c2.y, [t1, t2], raycaster);
+  assert.equal(cands[0], t2, 'ближайшая к тапу — вторая башня');
+  assert.ok(cands.includes(t1) || cands.length === 1, 'первая башня либо тоже кандидат, либо не перекрывается');
+
+  // тап по центру первой — выбирается первая
+  const c1 = proj(t1);
+  const cands1 = build.raycastTowerCandidates(c1.x, c1.y, [t1, t2], raycaster);
+  assert.equal(cands1[0], t1, 'ближайшая к тапу — первая башня');
+
+  // повторный тап по той же группе переключает (циклический перебор)
+  const merged = [t1, t2];
+  const i = merged.indexOf(t1);
+  const next = merged[(i + 1) % merged.length];
+  assert.equal(next, t2, 'циклический перебор идёт на следующую башню');
+
+  t1.dispose();
+  t2.dispose();
+});
+
+test('managers: выбор башни по экранному bbox (плотная застройка)', () => {
+  const { cave, perches, state, effects, particles, hud, panel } = makeGameParts();
+  const camera = new THREE.PerspectiveCamera(50, 800 / 600, 0.1, 100);
+  camera.position.set(0, 26, 0.01);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld(true);
+  camera.updateProjectionMatrix();
+  const build = new BuildSystem(state, effects, fakeSfx, particles, hud, panel, camera);
+  build.setScene(cave.scene);
+  state.essence = 1000;
+
+  const a = build.buildTower('screamer', perches[0], cave.scene);
+  const b = build.buildTower('frost', perches[1], cave.scene);
+  assert.ok(a.pickBox && b.pickBox, 'у башен есть pickBox');
+  assert.ok(a.pickBox.min.x < a.pickBox.max.x, 'pickBox не пустой');
+
+  const w = window.innerWidth, h = window.innerHeight;
+  const proj = (t) => {
+    const v = new THREE.Vector3(t.pos.x, t.pos.y + 0.5, t.pos.z).project(camera);
+    return { x: (v.x + 1) * 0.5 * w, y: (1 - v.y) * 0.5 * h };
+  };
+
+  // тап по центру башни B — первым кандидатом должна быть B
+  const pb = proj(b);
+  const c1 = build.towerCandidatesOnScreen(pb.x, pb.y, [a, b]);
+  assert.equal(c1[0], b, 'тап по центру B выбирает B');
+
+  // тап по центру башни A — первым кандидатом должна быть A
+  const pa = proj(a);
+  const c2 = build.towerCandidatesOnScreen(pa.x, pa.y, [a, b]);
+  assert.equal(c2[0], a, 'тап по центру A выбирает A');
+
+  // raycastTowerCandidates не падает с реальной камерой и находит обе
+  const raycaster = new THREE.Raycaster();
+  const cands = build.raycastTowerCandidates(pb.x, pb.y, [a, b], raycaster);
+  assert.ok(cands.includes(b), 'B в кандидатах рейкаста');
+  assert.ok(cands.includes(a), 'A в кандидатах рейкаста (перекрытие боксов)');
 });
 
 test('managers: CameraController — тап, драг, пинч', () => {

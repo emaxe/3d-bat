@@ -210,6 +210,9 @@ export class Tower {
     this.mesh.position.copy(this.pos);
     this.mesh.position.y += 0.35;
     scene.add(this.mesh);
+    // Экранный бокс для выбора: с ним тап попадает в башню по её ВИДИМОЙ части
+    // (включая выступающую над соседями), а не только по проекции центра.
+    this.pickBox = new THREE.Box3().setFromObject(this.mesh);
     this.pips = this.mesh.userData.pips;
     this.wingG = this.mesh.userData.wings;
     this.currentTarget = null;
@@ -278,6 +281,8 @@ export class Tower {
     this.mesh.position.copy(this.pos);
     this.mesh.position.y += 0.35;
     this.scene.add(this.mesh);
+    // бокс выбора пересчитываем: модель альфы больше/другая
+    this.pickBox = new THREE.Box3().setFromObject(this.mesh);
     this.pips = this.mesh.userData.pips;
     this.shadow = new THREE.Sprite(new THREE.SpriteMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     this.shadow.scale.setScalar(0.9);
@@ -293,10 +298,6 @@ export class Tower {
     this.rangeRing.position.y = 0.06;
     this.rangeRing.visible = false;
     this.mesh.add(this.rangeRing);
-    this.shadow = new THREE.Sprite(new THREE.SpriteMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
-    this.shadow.scale.setScalar(0.9);
-    this.shadow.position.y = -0.02;
-    this.mesh.add(this.shadow);
     return a;
   }
 

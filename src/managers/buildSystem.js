@@ -311,8 +311,10 @@ export class BuildSystem {
    * @param {THREE.Camera} camera - камера
    */
   handleTowerHover(x, y, towers, raycaster, camera) {
-    const t = this.raycastTower(x, y, towers, raycaster, camera);
-    
+    // тот же список кандидатов, что и при тапе — подсветка не расходится с выбором
+    const cands = this.raycastTowerCandidates(x, y, towers, raycaster);
+    const t = cands.length ? cands[0] : null;
+
     if (this.lastHoverTower && 
         this.lastHoverTower !== this.selectedTower && 
         this.lastHoverTower !== t) {
@@ -400,33 +402,58 @@ export class BuildSystem {
   }
 
   /**
-   * Кандидаты по экранной близости: все живые башни, чей центр на экране
-   * попадает в круг порога вокруг точки тапа, отсортированные по близости.
-   * Экранная дистанция не зависит от угла камеры и плотности застройки —
-   * в отличие от пересечения луча с плоскостью (старый метод «не видел»
-   * башни за соседними и путал их при низком угле).
+   * Кандидаты по экранной близости: все живые башни, чей экранный бокс
+   * (проекция pickBox) содержит точку тапа, отсортированные по близости
+   * тапа к центру бокса.
+   * В отличие от проекции центра (старый метод), бокс учитывает ВСЮ видимую
+   * часть башни: при плотной застройке тап по верхушке дальней башни, торчащей
+   * над соседями, попадает в её бокс — она становится кандидатом.
    */
   towerCandidatesOnScreen(x, y, towers) {
-    const v = new THREE.Vector3();
+    const corners = [
+      new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(),
+      new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(),
+    ];
     const w = window.innerWidth;
     const h = window.innerHeight;
-    // Порог щедрый: палец на телефоне закрывает башню, а тап смещается на
-    // 40-80px. Чем шире окно кандидатов, тем надёжнее циклический перебор
-    // добирается до нужной башни в плотной застройке.
-    const thresh = this.isTouch ? 88 : 50;
-    const thresh2 = thresh * thresh;
+    // Запас на палец: тап смещается на 10-20px от цели.
+    const margin = this.isTouch ? 16 : 8;
     const out = [];
     for (const t of towers) {
-      if (!t.alive) {continue;}
-      // центр модели: насест + ~0.9 высоты
-      v.set(t.pos.x, t.pos.y + 0.9, t.pos.z).project(this.camera);
-      if (v.z > 1) {continue;} // за камерой
-      const sx = (v.x + 1) * 0.5 * w;
-      const sy = (1 - v.y) * 0.5 * h;
-      const dx = sx - x;
-      const dy = sy - y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 <= thresh2) {out.push({ t, d2 });}
+      if (!t.alive || !t.pickBox) {continue;}
+      const min = t.pickBox.min;
+      const max = t.pickBox.max;
+      corners[0].set(min.x, min.y, min.z);
+      corners[1].set(max.x, min.y, min.z);
+      corners[2].set(min.x, max.y, min.z);
+      corners[3].set(max.x, max.y, min.z);
+      corners[4].set(min.x, min.y, max.z);
+      corners[5].set(max.x, min.y, max.z);
+      corners[6].set(min.x, max.y, max.z);
+      corners[7].set(max.x, max.y, max.z);
+      let minSx = Infinity, maxSx = -Infinity;
+      let minSy = Infinity, maxSy = -Infinity;
+      let behind = false;
+      for (const c of corners) {
+        c.project(this.camera);
+        if (c.z > 1) {behind = true; break;}
+        const sx = (c.x + 1) * 0.5 * w;
+        const sy = (1 - c.y) * 0.5 * h;
+        if (sx < minSx) {minSx = sx;}
+        if (sx > maxSx) {maxSx = sx;}
+        if (sy < minSy) {minSy = sy;}
+        if (sy > maxSy) {maxSy = sy;}
+      }
+      if (behind) {continue;}
+      minSx -= margin; maxSx += margin;
+      minSy -= margin; maxSy += margin;
+      if (x >= minSx && x <= maxSx && y >= minSy && y <= maxSy) {
+        const cx = (minSx + maxSx) * 0.5;
+        const cy = (minSy + maxSy) * 0.5;
+        const dx = x - cx;
+        const dy = y - cy;
+        out.push({ t, d2: dx * dx + dy * dy });
+      }
     }
     out.sort((a, b) => a.d2 - b.d2);
     return out.map(o => o.t);
