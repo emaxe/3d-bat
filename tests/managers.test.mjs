@@ -299,6 +299,37 @@ test('managers: CameraController — тап, драг, пинч', () => {
   cc.handlePointerUp(ev(100, 100, { pointerId: 1 }));
 });
 
+test('managers: BuildSystem — плотная застройка: обе башни в кандидатах выбора', () => {
+  const { cave, state, effects, particles, hud, panel } = makeGameParts();
+  const camera = new THREE.PerspectiveCamera(50, 800 / 600, 0.1, 120);
+  camera.position.set(9, 5, 0);
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld();
+  const build = new BuildSystem(state, effects, fakeSfx, particles, hud, panel, camera);
+  build.setScene(cave.scene);
+  state.essence = 1000;
+
+  // Две башни вплотную (плотная застройка), B — дальше от камеры (+Z).
+  const mkPerch = (x, z) => ({ def: { pos: { x, y: 0, z, clone() { return { x, y: 0, z }; } } }, occupied: false, setHighlight() {} });
+  const ta = build.buildTower('screamer', mkPerch(0, 0), cave.scene);
+  const tb = build.buildTower('frost', mkPerch(0, 0.8), cave.scene);
+  assert.ok(ta && tb, 'обе башни построены');
+
+  // Тап в перекрытие боксов (середина между башнями на высоте корпуса).
+  const mid = new THREE.Vector3(0, 0.6, 0.4).project(camera);
+  const sx = (mid.x + 1) * 0.5 * 800;
+  const sy = (1 - mid.y) * 0.5 * 600;
+  const cands = build.towerCandidatesOnScreen(sx, sy, [ta, tb]);
+  assert.ok(cands.includes(ta), 'башня A в кандидатах');
+  assert.ok(cands.includes(tb), 'башня B в кандидатах (раньше дальнюю было не выбрать)');
+
+  // Полный список кандидатов для циклического перебора — содержит обе.
+  const all = build.raycastTowerCandidates(sx, sy, [ta, tb], new THREE.Raycaster());
+  assert.ok(all.includes(ta) && all.includes(tb), 'обе башни в переборе');
+  assert.equal(all[0] !== all[1], true, 'порядок перебора разный — повторный тап переключает');
+});
+
 test('managers: BuildSystem — выбор башни по экранной близости (не по перехваченному лучу)', () => {
   const { scene } = makeGameParts();
   const mkPerch = (x, z) => ({

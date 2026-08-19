@@ -344,7 +344,8 @@ export class Game {
         try { window.dispatchEvent(new ErrorEvent('error', { error: err, message: String((err && err.stack) || err), filename: 'applyUpgrade', lineno: 0 })); } catch { /* оверлей недоступен */ }
         try { this.buildLevel(this.levelIndex); } catch { /* остаёмся как есть */ }
       }
-      this.waves.setWaveDelay(3.0);
+      // 3-й уровень: после сброса башен даём 8 секунд на оборону (волны 8–10)
+      this.waves.setWaveDelay(this.levelIndex === 2 ? 8.0 : 3.0);
     } else {
       // уровень 3 пройден, но до победы ещё волны 8–10 не все отбиты —
       // сюда попадаем только если TOTAL_WAVES совпал с границей (не случается)
@@ -583,6 +584,12 @@ export class Game {
       x: enemy.pos.x, y: enemy.pos.y, z: enemy.pos.z,
       count: enemy.boss ? 30 : 8, speed: enemy.boss ? 5 : 2.5,
       life: 0.6, size: enemy.boss ? 0.6 : 0.3, color: ENEMY_TYPES[enemy.typeId].color, gravity: 0,
+    });
+    // Кольцевая ударная волна при убийстве
+    this.particles.ring({
+      x: enemy.pos.x, y: enemy.pos.y, z: enemy.pos.z,
+      count: enemy.boss ? 24 : 12, speed: enemy.boss ? 4 : 2,
+      life: 0.4, size: 0.25, color: ENEMY_TYPES[enemy.typeId].color,
     });
     this.effects.damageNumber(enemy.pos, `+${reward} ◆`, '#ffe9a0');
 

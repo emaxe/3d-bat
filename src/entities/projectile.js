@@ -71,6 +71,9 @@ export class Projectile {
     }
     this.pos.add(dir.normalize().scale(step));
     this.mesh.position.copy(this.pos);
+    // Лёгкий trail: пульсация свечения
+    const pulse = 1 + Math.sin(performance.now() * 0.02) * 0.15;
+    this.glow.scale.setScalar(RADIUS * 5 * pulse);
   }
 
   hit() {

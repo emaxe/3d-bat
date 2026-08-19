@@ -7,7 +7,7 @@ export const ECONOMY = {
   comboWindow: 3.0,      // с, окно комбо
   comboMax: 5,
   comboGoldBonus: 0.1,   // +10% эссенции за уровень комбо
-  waveClearBonus: 20,    // бонус за зачистку волны
+  waveClearBonus: 35,    // бонус за зачистку волны
   crystalHealPerVampireKill: 0.5,
 };
 
@@ -22,5 +22,5 @@ export function sellPrice(totalSpent) {
 }
 
 export function waveClearReward(wave) {
-  return ECONOMY.waveClearBonus + Math.min(20, Math.floor(wave * 2));
+  return ECONOMY.waveClearBonus + Math.min(25, Math.floor(wave * 2.5));
 }

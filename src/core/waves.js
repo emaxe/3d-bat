@@ -28,9 +28,9 @@ const HANDCRAFTED = [
   { groups: [{ type: 'moth', count: 6, interval: 1.4, delay: 1 }, { type: 'spider', count: 1, interval: 1, delay: 12 }, { type: 'ranger', count: 2, interval: 5, delay: 7 }] },   // 5 босс
   { groups: [{ type: 'cloak', count: 5, interval: 2.2, delay: 1 }, { type: 'regen', count: 3, interval: 4, delay: 8 }, { type: 'swarm', count: 12, interval: 0.3, delay: 18 }, { type: 'healer', count: 3, interval: 5, delay: 14 }] }, // 6
   { groups: [{ type: 'beetle', count: 8, interval: 1.6, delay: 1 }, { type: 'regen', count: 4, interval: 3, delay: 7 }, { type: 'cloak', count: 2, interval: 4, delay: 15 }, { type: 'ranger', count: 3, interval: 4, delay: 10 }, { type: 'healer', count: 2, interval: 6, delay: 18 }] },  // 7
-  { groups: [{ type: 'cloak', count: 10, interval: 1.6, delay: 1 }, { type: 'swarm', count: 18, interval: 0.25, delay: 9 }, { type: 'regen', count: 4, interval: 3, delay: 16 }, { type: 'healer', count: 4, interval: 4, delay: 12 }, { type: 'ranger', count: 2, interval: 5, delay: 20 }] }, // 8
+  { groups: [{ type: 'cloak', count: 6, interval: 2.0, delay: 1 }, { type: 'swarm', count: 10, interval: 0.6, delay: 7 }, { type: 'healer', count: 2, interval: 5, delay: 12 }, { type: 'regen', count: 3, interval: 3.5, delay: 15 }, { type: 'ranger', count: 2, interval: 5, delay: 20 }] }, // 8
   { groups: [{ type: 'regen', count: 6, interval: 2.4, delay: 1 }, { type: 'swarm', count: 12, interval: 0.3, delay: 8 }, { type: 'beetle', count: 2, interval: 3, delay: 16 }, { type: 'ranger', count: 4, interval: 3.5, delay: 10 }, { type: 'healer', count: 3, interval: 4, delay: 18 }] }, // 9
-  { groups: [{ type: 'cloak', count: 8, interval: 1.8, delay: 1 }, { type: 'swarm', count: 18, interval: 0.25, delay: 8 }, { type: 'vampmoth', count: 1, interval: 1, delay: 16 }, { type: 'healer', count: 3, interval: 5, delay: 12 }, { type: 'ranger', count: 3, interval: 4, delay: 20 }] }, // 10 босс
+  { groups: [{ type: 'cloak', count: 6, interval: 2.0, delay: 1 }, { type: 'swarm', count: 12, interval: 0.45, delay: 8 }, { type: 'healer', count: 2, interval: 5, delay: 12 }, { type: 'vampmoth', count: 1, interval: 1, delay: 18 }, { type: 'ranger', count: 2, interval: 5, delay: 22 }] }, // 10 босс
 ];
 
 export const TOTAL_WAVES = HANDCRAFTED.length; // 10 — после них бесконечный режим

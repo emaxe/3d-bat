@@ -12,18 +12,31 @@ function wings(color, scale) {
   if (!wingCache.has(color)) {wingCache.set(color, wingTexture(color));}
   const tex = wingCache.get(color);
   const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
-  const geo = new THREE.PlaneGeometry(1.1, 0.55, 1, 1);
   const g = new THREE.Group();
   for (const side of [-1, 1]) {
+    const geo = new THREE.PlaneGeometry(1.1, 0.55, 1, 1);
+    geo.translate(-0.55 * side, 0, 0);
     const w = new THREE.Mesh(geo, mat);
     w.position.x = side * 0.34;
     w.rotation.y = side * 1.0;
-    w.geometry.translate(-0.5 * side, 0, 0);
     g.add(w);
   }
   g.scale.setScalar(scale);
   return g;
 }
+
+const geoCache = new Map();
+function getSharedGeo(key, factory) {
+  if (!geoCache.has(key)) {
+    const geo = factory();
+    geo.dispose = () => {}; // Защита от случайного dispose() при traverse()
+    geoCache.set(key, geo);
+  }
+  return geoCache.get(key);
+}
+
+const baseMat = new THREE.MeshStandardMaterial({ color: 0x4a4a5e, roughness: 0.9 });
+baseMat.dispose = () => {};
 
 let shadowTex = null;
 
@@ -34,145 +47,324 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
   const s = isAlpha ? 1.28 : 1;
 
   const g = new THREE.Group();
-  const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.15, emissive: new THREE.Color(color).multiplyScalar(0.25), emissiveIntensity: 0.5 });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8), bodyMat);
+
+  // 1. Тело мыши-стража
+  const bodyGeo = getSharedGeo('body', () => new THREE.SphereGeometry(0.24, 8, 6));
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.5,
+    metalness: 0.15,
+    emissive: new THREE.Color(color).multiplyScalar(0.25),
+    emissiveIntensity: 0.5,
+  });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.scale.set(0.9, 0.85, 1.3);
   g.add(body);
 
-  // каменная подставка-постамент
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 0.12, 8),
-    new THREE.MeshStandardMaterial({ color: 0x4a4a5e, roughness: 0.9 }));
+  // 2. Каменная подставка-постамент
+  const baseGeo = getSharedGeo('base', () => new THREE.CylinderGeometry(0.2, 0.3, 0.12, 8));
+  const base = new THREE.Mesh(baseGeo, baseMat);
   base.position.y = -0.24;
   g.add(base);
 
+  // 3. Крылья
   const wingG = wings(color, s);
   g.add(wingG);
 
-  // уши спереди
-  const earMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).multiplyScalar(0.6) });
+  // 4. Уши спереди
+  const earGeo = getSharedGeo('ear', () => new THREE.ConeGeometry(0.05, 0.14, 5));
+  const earMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(color).multiplyScalar(0.6),
+    roughness: 0.6,
+  });
   for (const side of [-1, 1]) {
-    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 4), earMat);
+    const ear = new THREE.Mesh(earGeo, earMat);
     ear.position.set(side * 0.09, 0.2, 0.16);
+    ear.rotation.x = 0.2;
     ear.rotation.z = side * 0.35;
     g.add(ear);
   }
-  // глаза спереди
+
+  // 5. Глаза спереди (+Z)
+  const eyeGeo = getSharedGeo('eye', () => new THREE.SphereGeometry(0.045, 6, 6));
   const eyeMat = new THREE.MeshBasicMaterial({ color: glow });
   for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 6), eyeMat);
+    const eye = new THREE.Mesh(eyeGeo, eyeMat);
     eye.position.set(side * 0.1, 0.03, 0.22);
     g.add(eye);
   }
+  // 5b. Свечение вокруг глаз (точечный свет-спрайт)
+  const eyeGlowTex = glowTexture(glow, '#ffffff');
+  const eyeGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: eyeGlowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5,
+  }));
+  eyeGlow.position.set(0, 0.03, 0.25);
+  eyeGlow.scale.setScalar(0.35);
+  g.add(eyeGlow);
 
-  // ---- типовые аксессуары: у каждого стража свой силуэт (растут с уровнем) ----
+  // Массивы и хуки для userData
   const spinRings = [];
   const orbitOrbs = [];
+  let horn = null;
+  let crystals = [];
+  let cap = null;
+  let gem = null;
+  let flames = [];
+  let lantern = null;
+  let collar = null;
+  let fangs = [];
+  let eyeGlowSprite = eyeGlow;
+
+  // ---- ТИПОВЫЕ МОДЕЛИ И СИГНАТУРНЫЕ СИЛУЭТЫ ----
   if (typeId === 'screamer') {
-    // сонарный излучатель перед мордой + кольца-резонаторы (растут с уровнем)
-    const horn = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.015, 6, 16), new THREE.MeshBasicMaterial({ color: glow }));
-    horn.position.set(0, 0.02, 0.3);
-    g.add(horn);
-    for (let i = 1; i < level; i++) {
-      const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.1 + i * 0.06, 0.012, 6, 18),
-        new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.6 }));
-      ring2.position.set(0, 0.02, 0.3);
-      ring2.rotation.x = Math.PI / 2;
-      g.add(ring2);
-      spinRings.push(ring2);
+    // Визгун (красный): 2 сонарных уха-воронки по бокам, сонарный рупор на +Z, резонаторные дуги сзади (-Z)
+    const funnelMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).multiplyScalar(0.75), roughness: 0.4 });
+    const funnelGeo = getSharedGeo('screamerFunnel', () => new THREE.ConeGeometry(0.08, 0.18, 6, 1, true));
+    for (const side of [-1, 1]) {
+      const fn = new THREE.Mesh(funnelGeo, funnelMat);
+      fn.position.set(side * 0.16, 0.22, 0.08);
+      fn.rotation.z = side * 0.5;
+      fn.rotation.x = -0.3;
+      g.add(fn);
+    }
+    // Сонарный рупор на +Z (перед мордой)
+    const hornGroup = new THREE.Group();
+    hornGroup.position.set(0, 0.02, 0.28);
+    const torusHornGeo = getSharedGeo('torusHorn', () => new THREE.TorusGeometry(0.07, 0.016, 6, 14));
+    const hornMesh = new THREE.Mesh(torusHornGeo, new THREE.MeshBasicMaterial({ color: glow }));
+    hornGroup.add(hornMesh);
+    const coneCoreGeo = getSharedGeo('coneCore', () => new THREE.ConeGeometry(0.04, 0.1, 6));
+    const coneCore = new THREE.Mesh(coneCoreGeo, new THREE.MeshBasicMaterial({ color }));
+    coneCore.rotation.x = Math.PI / 2;
+    hornGroup.add(coneCore);
+    g.add(hornGroup);
+    horn = hornGroup;
+
+    // Резонаторные дуги за спиной (-Z)
+    const arcCount = level + (isAlpha ? 1 : 0);
+    const arcMat = new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.7 });
+    for (let i = 0; i < arcCount; i++) {
+      const arcGeo = getSharedGeo(`arc_${i}`, () => new THREE.TorusGeometry(0.12 + i * 0.06, 0.012, 6, 16));
+      const ring = new THREE.Mesh(arcGeo, arcMat);
+      ring.position.set(0, 0.05 + i * 0.04, -0.1 - i * 0.05);
+      ring.rotation.x = Math.PI / 3;
+      g.add(ring);
+      spinRings.push(ring);
     }
   } else if (typeId === 'frost') {
-    // ледяные шипы на спине (больше с уровнем)
-    const iceMat = new THREE.MeshBasicMaterial({ color: '#c8f0ff' });
-    for (let i = 0; i < level + 1; i++) {
-      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.2, 5), iceMat);
-      spike.position.set((i - 1) * 0.09, 0.3, -0.05 - i * 0.05);
-      spike.rotation.x = -0.5;
-      g.add(spike);
+    // Иней (ледяной голубой): гряда полупрозрачных кристаллов на спине (-Z)
+    const octGeo = getSharedGeo('octa', () => new THREE.OctahedronGeometry(0.1, 0));
+    const iceMat = new THREE.MeshStandardMaterial({
+      color: glow,
+      roughness: 0.1,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.85,
+      emissive: new THREE.Color(glow).multiplyScalar(0.4),
+    });
+    const count = level + 1 + (isAlpha ? 1 : 0); // L1: 2, L2: 3, L3: 4
+    for (let i = 0; i < count; i++) {
+      const oct = new THREE.Mesh(octGeo, iceMat);
+      const scaleY = 1.2 + (i % 2) * 0.4;
+      oct.scale.set(0.7, scaleY, 0.7);
+      const offsetX = (i - (count - 1) / 2) * 0.08;
+      oct.position.set(offsetX, 0.28 + (i % 2) * 0.04, -0.08 - Math.abs(offsetX) * 0.3);
+      oct.rotation.x = -0.3;
+      oct.rotation.z = offsetX * -0.8;
+      g.add(oct);
+      crystals.push(oct);
+    }
+    // Ледяные края крыльев
+    const wingIceMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.8 });
+    const spikeGeo = getSharedGeo('coneSpike', () => new THREE.ConeGeometry(0.04, 0.2, 5));
+    for (const side of [-1, 1]) {
+      const spk = new THREE.Mesh(spikeGeo, wingIceMat);
+      spk.position.set(side * 0.26, 0.12, 0.02);
+      spk.scale.set(0.6, 0.7, 0.6);
+      spk.rotation.z = side * -0.6;
+      g.add(spk);
     }
   } else if (typeId === 'spore') {
-    // грибная шляпка на голове + споры по бокам (+ мини-шляпки с уровнем)
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#4fae2a', roughness: 0.6 }));
-    cap.position.y = 0.32;
-    g.add(cap);
-    const sporeMat = new THREE.MeshBasicMaterial({ color: '#c8ffa0' });
-    for (const side of [-1, 1]) {
-      const sp = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), sporeMat);
-      sp.position.set(side * 0.18, 0.2, 0.05);
-      g.add(sp);
+    // Спора (ядовито-зелёный): грибная шляпка на голове, мицелий, мини-грибки на плечах
+    const capGroup = new THREE.Group();
+    capGroup.position.set(0, 0.28, 0.02);
+    const capMat = new THREE.MeshStandardMaterial({ color, roughness: 0.5 });
+    const mainCapGeo = getSharedGeo('sporeCap', () => new THREE.SphereGeometry(0.14, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2));
+    const capMesh = new THREE.Mesh(mainCapGeo, capMat);
+    capGroup.add(capMesh);
+    // Споры на шляпке
+    const spotMat = new THREE.MeshBasicMaterial({ color: glow });
+    for (let i = 0; i < 5; i++) {
+      const spot = new THREE.Mesh(eyeGeo, spotMat);
+      spot.scale.setScalar(0.6);
+      const angle = (i / 5) * Math.PI * 2;
+      spot.position.set(Math.cos(angle) * 0.08, 0.06, Math.sin(angle) * 0.08);
+      capGroup.add(spot);
     }
-    for (let i = 1; i < level; i++) {
-      const mini = new THREE.Mesh(new THREE.SphereGeometry(0.055 + i * 0.01, 7, 5, 0, Math.PI * 2, 0, Math.PI / 2),
-        new THREE.MeshStandardMaterial({ color: '#5fc03a', roughness: 0.6 }));
-      mini.position.set(i % 2 === 0 ? -0.14 : 0.14, 0.24 + i * 0.05, -0.02);
-      g.add(mini);
+    g.add(capGroup);
+    cap = capGroup;
+
+    // Мини-грибки по бокам (L2: +1, L3: +2)
+    const miniMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).multiplyScalar(0.85), roughness: 0.6 });
+    const miniGeo = getSharedGeo('miniCap', () => new THREE.SphereGeometry(0.06, 6, 5, 0, Math.PI * 2, 0, Math.PI / 2));
+    const miniCount = level - 1 + (isAlpha ? 1 : 0);
+    for (let i = 0; i < miniCount; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const m = new THREE.Mesh(miniGeo, miniMat);
+      m.position.set(side * 0.16, 0.16 + i * 0.06, -0.05);
+      m.rotation.z = side * 0.4;
+      g.add(m);
     }
   } else if (typeId === 'echo') {
-    // сонарные кольца вокруг тела (растут с уровнем)
-    for (let i = 0; i < level + 1; i++) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34 + i * 0.1, 0.012, 5, 20),
-        new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.75 - i * 0.2 }));
-      ring.rotation.x = Math.PI / 2 + i * 0.3;
-      ring.position.y = 0.06;
+    // Эхо (аметистовый): аметистовый кристалл на груди (+Z), парящие сонарные кольца
+    const gemMat = new THREE.MeshStandardMaterial({
+      color: glow,
+      emissive: new THREE.Color(color),
+      emissiveIntensity: 0.6,
+      roughness: 0.2,
+      metalness: 0.3,
+    });
+    const octGeo = getSharedGeo('octa', () => new THREE.OctahedronGeometry(0.1, 0));
+    gem = new THREE.Mesh(octGeo, gemMat);
+    gem.scale.set(0.8, 1.3, 0.8);
+    gem.position.set(0, 0.05, 0.22);
+    g.add(gem);
+
+    // Парящие сонарные кольца (L1: 1, L2: 2, L3: 3)
+    const ringCount = level + (isAlpha ? 1 : 0);
+    for (let i = 0; i < ringCount; i++) {
+      const ringMat = new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.85 - i * 0.15 });
+      const ringGeo = getSharedGeo(`echoRing_${i}`, () => new THREE.TorusGeometry(0.32 + i * 0.08, 0.012, 5, 20));
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = Math.PI / 2 + i * 0.4;
+      ring.rotation.y = i * 0.5;
+      ring.position.y = 0.05;
+      ring.userData.pickable = false;
       g.add(ring);
       spinRings.push(ring);
     }
   } else if (typeId === 'fire') {
-    // языки пламени на спине (больше с уровнем)
-    const flameMat = new THREE.MeshBasicMaterial({ color: '#ffd0a0' });
-    for (let i = 0; i < level + 1; i++) {
-      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.045 - i * 0.008, 0.22 + i * 0.04, 5), flameMat);
-      flame.position.set((i - 1) * 0.1, 0.3, -0.08);
-      flame.rotation.x = -0.45;
+    // Жар (огненный оранжевый): зубчатая корона пламени на спине (-Z), пылающий уголь на груди
+    const spikeGeo = getSharedGeo('coneSpike', () => new THREE.ConeGeometry(0.04, 0.2, 5));
+    const flameMat = new THREE.MeshBasicMaterial({ color: glow });
+    const count = level + 1 + (isAlpha ? 2 : 0); // L1: 2, L2: 3, L3: 4
+    for (let i = 0; i < count; i++) {
+      const flame = new THREE.Mesh(spikeGeo, flameMat);
+      const offsetX = (i - (count - 1) / 2) * 0.09;
+      flame.position.set(offsetX, 0.26 + (1 - Math.abs(offsetX)) * 0.06, -0.08 - Math.abs(offsetX) * 0.04);
+      flame.scale.set(0.9, 1.2 + (i % 2) * 0.3, 0.9);
+      flame.rotation.x = -0.4;
+      flame.rotation.z = offsetX * -0.5;
       g.add(flame);
+      flames.push(flame);
     }
+    // Пылающий уголь на груди (+Z)
+    const coalMat = new THREE.MeshStandardMaterial({
+      color: '#ff3300',
+      emissive: '#ff7700',
+      emissiveIntensity: 0.8,
+      roughness: 0.3,
+    });
+    const octSmallGeo = getSharedGeo('octaSmall', () => new THREE.OctahedronGeometry(0.07, 0));
+    const ember = new THREE.Mesh(octSmallGeo, coalMat);
+    ember.position.set(0, 0.04, 0.22);
+    g.add(ember);
   } else if (typeId === 'lantern') {
-    // светящийся шар-фонарь над головой + орбитальные огоньки (с уровнем)
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshBasicMaterial({ color: '#fff6c8' }));
-    ball.position.y = 0.36;
-    g.add(ball);
-    for (let i = 0; i < level; i++) {
-      const orb = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.9 }));
-      orb.position.set(0.16, 0.36, 0);
+    // Фонарь (золотисто-янтарный): фонарь-кристалл на переднем роге (+Z), орбитальные огоньки
+    const rodGeo = getSharedGeo('lanternRod', () => new THREE.CylinderGeometry(0.02, 0.03, 0.22, 6));
+    const hornRod = new THREE.Mesh(rodGeo, new THREE.MeshStandardMaterial({ color: 0x554433, roughness: 0.6 }));
+    hornRod.position.set(0, 0.22, 0.18);
+    hornRod.rotation.x = 0.6;
+    g.add(hornRod);
+
+    const lanternGroup = new THREE.Group();
+    lanternGroup.position.set(0, 0.3, 0.28);
+    const octGeo = getSharedGeo('octa', () => new THREE.OctahedronGeometry(0.1, 0));
+    const lanternMat = new THREE.MeshBasicMaterial({ color: '#fff6c8' });
+    const lanternMesh = new THREE.Mesh(octGeo, lanternMat);
+    lanternMesh.scale.setScalar(0.9);
+    lanternGroup.add(lanternMesh);
+
+    const cageGeo = getSharedGeo('torusHorn', () => new THREE.TorusGeometry(0.07, 0.016, 6, 14));
+    const cageMat = new THREE.MeshStandardMaterial({ color: 0x886622, roughness: 0.4, metalness: 0.6 });
+    const cage = new THREE.Mesh(cageGeo, cageMat);
+    cage.rotation.x = Math.PI / 2;
+    lanternGroup.add(cage);
+    g.add(lanternGroup);
+    lantern = lanternGroup;
+
+    // Орбитальные огоньки (L1: 1, L2: 2, L3: 3)
+    const orbCount = level + (isAlpha ? 1 : 0);
+    const orbMat = new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.9 });
+    for (let i = 0; i < orbCount; i++) {
+      const orb = new THREE.Mesh(eyeGeo, orbMat);
+      orb.position.set(0.18, 0.32, 0);
+      orb.userData.pickable = false;
       g.add(orb);
       orbitOrbs.push(orb);
     }
   } else if (typeId === 'vampire') {
-    // клыки + шипы-«крылья» на спине (с уровнем)
-    const fangMat = new THREE.MeshStandardMaterial({ color: '#f2ece2', roughness: 0.25 });
-    for (const side of [-1, 1]) {
-      const fang = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.12, 5), fangMat);
-      fang.position.set(side * 0.05, 0.0, 0.24);
-      fang.rotation.x = -0.5;
-      g.add(fang);
-    }
-    const wingSpikeMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).multiplyScalar(0.45) });
-    for (let i = 1; i < level; i++) {
-      for (const side of [-1, 1]) {
-        const spk = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.16, 4), wingSpikeMat);
-        spk.position.set(side * 0.22, 0.1, -0.12 - i * 0.06);
-        spk.rotation.z = side * 0.9;
+    // Вампир (багровый): высокий воротник-плащ сзади (-Z), кинжальные клыки (+Z)
+    const collarMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color).multiplyScalar(0.4),
+      roughness: 0.7,
+      side: THREE.DoubleSide,
+    });
+    const collarHeight = 0.22 + level * 0.05;
+    const collarGeo = getSharedGeo(`vampCollar_${level}`, () => new THREE.CylinderGeometry(0.2, 0.12, collarHeight, 8, 1, true, -Math.PI * 0.65, Math.PI * 1.3));
+    collar = new THREE.Mesh(collarGeo, collarMat);
+    collar.position.set(0, 0.16 + collarHeight * 0.4, -0.08);
+    collar.rotation.x = -0.2;
+    g.add(collar);
+
+    // Костяные шипы на воротнике (L2: +2, L3: +4)
+    const fangGeo = getSharedGeo('fang', () => new THREE.ConeGeometry(0.025, 0.13, 4));
+    if (level >= 2 || isAlpha) {
+      const boneMat = new THREE.MeshStandardMaterial({ color: 0xe0d6c8, roughness: 0.3 });
+      const boneCount = (level - 1) * 2 + (isAlpha ? 2 : 0);
+      for (let i = 0; i < boneCount; i++) {
+        const side = i % 2 === 0 ? -1 : 1;
+        const idx = Math.floor(i / 2);
+        const spk = new THREE.Mesh(fangGeo, boneMat);
+        spk.position.set(side * (0.12 + idx * 0.05), 0.28 + idx * 0.08, -0.14);
+        spk.rotation.z = side * -0.4;
+        spk.rotation.x = -0.5;
         g.add(spk);
       }
     }
+
+    // Кинжальные клыки спереди (+Z)
+    const fangMat = new THREE.MeshStandardMaterial({ color: 0xf5efe6, roughness: 0.2 });
+    for (const side of [-1, 1]) {
+      const fang = new THREE.Mesh(fangGeo, fangMat);
+      fang.position.set(side * 0.06, -0.02, 0.24);
+      fang.rotation.x = -0.5;
+      g.add(fang);
+      fangs.push(fang);
+    }
   }
 
-  // пипсы уровня
+  // Пипсы уровня (3 шт)
+  const pipGeo = getSharedGeo('pip', () => new THREE.SphereGeometry(0.055, 6, 6));
   const pips = [];
   for (let i = 0; i < MAX_LEVEL; i++) {
-    const pip = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 6), new THREE.MeshBasicMaterial({ color: 0x334455 }));
+    const pip = new THREE.Mesh(pipGeo, new THREE.MeshBasicMaterial({ color: 0x334455 }));
     pip.position.set((i - 1) * 0.15, 0.37, 0);
     g.add(pip);
     pips.push(pip);
   }
   setPips(pips, level, glow);
 
-  // аура альфы
+  // Аура альфы
   let aura = null;
   if (isAlpha) {
-    const crown = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.03, 6, 18), new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.9 }));
+    const crownGeo = getSharedGeo('crown', () => new THREE.TorusGeometry(0.28, 0.03, 6, 18));
+    const crown = new THREE.Mesh(crownGeo, new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.9 }));
     crown.rotation.x = Math.PI / 2;
-    crown.position.y = 0.3;
+    crown.position.y = 0.32;
+    crown.userData.pickable = false;
     g.add(crown);
+
     aura = new THREE.Sprite(new THREE.SpriteMaterial({
       map: glowTexture(glow, '#ffffff'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.35,
     }));
@@ -182,7 +374,24 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
   }
 
   g.scale.setScalar(s);
-  g.userData = { body, wings: wingG, pips, aura, glow, spinRings, orbitOrbs };
+  g.userData = {
+    body,
+    wings: wingG,
+    pips,
+    aura,
+    glow,
+    spinRings,
+    orbitOrbs,
+    horn,
+    crystals,
+    cap,
+    gem,
+    flames,
+    lantern,
+    collar,
+    fangs,
+    eyeGlow: eyeGlowSprite,
+  };
   return g;
 }
 
@@ -212,6 +421,7 @@ export class Tower {
     scene.add(this.mesh);
     // Экранный бокс для выбора: с ним тап попадает в башню по её ВИДИМОЙ части
     // (включая выступающую над соседями), а не только по проекции центра.
+    this.mesh.updateWorldMatrix(true, true); // иначе бокс посчитается в origin
     this.pickBox = new THREE.Box3().setFromObject(this.mesh);
     this.pips = this.mesh.userData.pips;
     this.wingG = this.mesh.userData.wings;
@@ -282,8 +492,10 @@ export class Tower {
     this.mesh.position.y += 0.35;
     this.scene.add(this.mesh);
     // бокс выбора пересчитываем: модель альфы больше/другая
+    this.mesh.updateWorldMatrix(true, true); // иначе бокс посчитается в origin
     this.pickBox = new THREE.Box3().setFromObject(this.mesh);
     this.pips = this.mesh.userData.pips;
+    this.wingG = this.mesh.userData.wings;
     this.shadow = new THREE.Sprite(new THREE.SpriteMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     this.shadow.scale.setScalar(0.9);
     this.shadow.position.y = -0.02;
@@ -308,23 +520,62 @@ export class Tower {
 
     // взмах крыльев
     const wings2 = this.wingG.children;
+    const flapSpeed = this.typeId === 'vampire' ? 3.5 : (this.typeId === 'frost' ? 4.0 : 6.0);
+    const flapAmp = this.typeId === 'vampire' ? 0.65 : 0.55;
     for (const w of wings2) {
-      w.rotation.x = Math.sin(this.t * 6) * 0.55;
+      w.rotation.x = Math.sin(this.t * flapSpeed) * flapAmp;
     }
     this.mesh.position.y = this.pos.y + 0.35 + Math.sin(this.t * 2.4) * 0.05;
 
-    // вращение сонарных колец (Визгун/Эхо)
-    const spinRings = this.mesh.userData.spinRings;
-    if (spinRings) {
-      spinRings.forEach((r, i) => { r.rotation.z += dt * (i % 2 === 0 ? 1 : -1) * 1.5; });
+    // Анимация деталей по userData-хукам
+    const ud = this.mesh.userData;
+
+    if (ud.horn) {
+      ud.horn.rotation.x = Math.sin(this.t * 3.5) * 0.08;
     }
-    // орбитальные огоньки Фонаря
-    const orbitOrbs = this.mesh.userData.orbitOrbs;
-    if (orbitOrbs) {
-      orbitOrbs.forEach((o, i) => {
-        const a = this.t * 2.2 + (i / orbitOrbs.length) * Math.PI * 2;
-        o.position.set(Math.cos(a) * 0.17, 0.36 + Math.sin(this.t * 3 + i) * 0.03, Math.sin(a) * 0.17);
+    if (ud.spinRings && ud.spinRings.length > 0) {
+      ud.spinRings.forEach((r, i) => {
+        r.rotation.z += dt * (i % 2 === 0 ? 1 : -1) * 1.8;
       });
+    }
+    if (ud.crystals && ud.crystals.length > 0) {
+      ud.crystals.forEach((c, i) => {
+        c.rotation.y = Math.sin(this.t * 2 + i) * 0.15;
+      });
+    }
+    if (ud.cap) {
+      const breath = 1 + Math.sin(this.t * 3) * 0.06;
+      ud.cap.scale.set(breath, 1 + Math.sin(this.t * 3 + 1) * 0.08, breath);
+    }
+    if (ud.gem) {
+      ud.gem.rotation.y += dt * 1.2;
+      const pulse = 1 + Math.sin(this.t * 4) * 0.08;
+      ud.gem.scale.set(0.8 * pulse, 1.3 * pulse, 0.8 * pulse);
+    }
+    if (ud.flames && ud.flames.length > 0) {
+      ud.flames.forEach((f, i) => {
+        f.scale.y = (1.2 + (i % 2) * 0.3) * (1 + Math.sin(this.t * 10 + i * 1.5) * 0.22);
+        f.scale.x = 0.9 * (1 + Math.cos(this.t * 8 + i) * 0.12);
+      });
+    }
+    if (ud.lantern) {
+      ud.lantern.rotation.z = Math.sin(this.t * 2.2) * 0.12;
+      ud.lantern.rotation.x = Math.cos(this.t * 1.8) * 0.08;
+    }
+    if (ud.orbitOrbs && ud.orbitOrbs.length > 0) {
+      const len = ud.orbitOrbs.length;
+      ud.orbitOrbs.forEach((o, i) => {
+        const a = this.t * 2.2 + (i / len) * Math.PI * 2;
+        o.position.set(Math.cos(a) * 0.18, 0.32 + Math.sin(this.t * 3 + i) * 0.04, Math.sin(a) * 0.18);
+      });
+    }
+    if (ud.collar) {
+      ud.collar.rotation.z = Math.sin(this.t * 1.8) * 0.04;
+    }
+    if (ud.eyeGlow) {
+      const pulse = 0.35 + Math.sin(this.t * 4) * 0.08;
+      ud.eyeGlow.scale.setScalar(pulse);
+      ud.eyeGlow.material.opacity = 0.4 + Math.sin(this.t * 5) * 0.15;
     }
 
     // пассивки альф

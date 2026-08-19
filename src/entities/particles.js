@@ -92,6 +92,42 @@ export class ParticleSystem {
     }
   }
 
+  // Кольцевой взрыв (ударная волна): частицы разлетаются кольцом в XZ.
+  ring(o) {
+    const count = o.count ?? 16;
+    const speed = o.speed ?? 3;
+    for (let i = 0; i < count; i++) {
+      const ang = (i / count) * Math.PI * 2;
+      this.spawn({
+        x: o.x, y: o.y, z: o.z,
+        vx: Math.cos(ang) * speed,
+        vy: 0,
+        vz: Math.sin(ang) * speed,
+        life: o.life ?? 0.4, size: o.size ?? 0.3,
+        color: o.color ?? '#ffffff',
+        gravity: 0, drag: 2,
+      });
+    }
+  }
+
+  // Направленный взрыв (в сторону от точки): для попаданий снарядов.
+  directed(o) {
+    const count = o.count ?? 6;
+    for (let i = 0; i < count; i++) {
+      const spread = (Math.random() - 0.5) * 1.5;
+      const speed = (o.speed ?? 3) * (0.5 + Math.random() * 0.5);
+      this.spawn({
+        x: o.x, y: o.y, z: o.z,
+        vx: (o.dx ?? 0) * speed + spread,
+        vy: (o.dy ?? 0.5) * speed,
+        vz: (o.dz ?? 0) * speed + spread,
+        life: o.life ?? 0.3, size: o.size ?? 0.2,
+        color: o.color ?? '#ffffff',
+        gravity: 0.5, drag: 1.5,
+      });
+    }
+  }
+
   update(dt) {
     let w = 0;
     for (let i = 0; i < this.live; i++) {

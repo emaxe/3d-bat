@@ -32,12 +32,12 @@ export function damageTaken(baseDamage, armor, vulnBonus) {
 
 // ХП врага с учётом скейлинга волны.
 export function scaledHp(baseHp, wave, endless = false) {
-  const k = endless ? 1.22 : 1.18;
+  const k = endless ? 1.22 : 1.15;
   return baseHp * Math.pow(k, wave - 1);
 }
 
 // Награда с учётом скейлинга волны (округляется до целых).
 export function scaledReward(baseReward, wave, endless = false) {
-  const k = endless ? 1.1 : 1.06;
+  const k = endless ? 1.1 : 1.08;
   return Math.round(baseReward * Math.pow(k, wave - 1));
 }
