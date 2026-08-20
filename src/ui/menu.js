@@ -1,5 +1,6 @@
 // Меню: старт, поражение, победа (endless), прогресс кампании, история/лор.
 import { STORY_LORE } from '../config/story.js';
+import { getDifficulty } from '../config/difficulty.js';
 
 export class Menus {
   constructor(onStart) {
@@ -8,27 +9,50 @@ export class Menus {
     this.overEl = document.getElementById('gameover');
     this.winEl = document.getElementById('win');
     this.storyEl = document.getElementById('story');
+    this.difficulty = this.readDifficulty();
+    this.bindDifficultyButtons();
+    this.saveDifficulty(this.difficulty);
+
     document.getElementById('btn-start').addEventListener('click', () => {
       this.menuEl.classList.remove('show');
-      this.onStart();
+      this.onStart(false, this.difficulty);
     });
     document.getElementById('btn-restart').addEventListener('click', () => {
       this.overEl.classList.remove('show');
-      this.onStart();
+      this.onStart(false, this.difficulty);
     });
     document.getElementById('btn-win-restart').addEventListener('click', () => {
       this.winEl.classList.remove('show');
-      this.onStart();
+      this.onStart(false, this.difficulty);
     });
     document.getElementById('btn-endless').addEventListener('click', () => {
       this.winEl.classList.remove('show');
-      this.onStart(true);
+      this.onStart(true, this.difficulty);
     });
     document.getElementById('btn-story')?.addEventListener('click', () => {
       this.showStory();
     });
     document.getElementById('btn-story-close')?.addEventListener('click', () => {
       this.storyEl?.classList.remove('show');
+    });
+  }
+
+  readDifficulty() {
+    try { return localStorage.getItem('3dbat.difficulty') || 'normal'; } catch { return 'normal'; }
+  }
+
+  saveDifficulty(id) {
+    this.difficulty = id;
+    try { localStorage.setItem('3dbat.difficulty', id); } catch { /* приватный режим */ }
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.toggle('active', b.dataset.diff === id));
+    const d = getDifficulty(id);
+    const desc = document.getElementById('diff-desc');
+    if (desc && d) desc.textContent = `${d.icon} ${d.desc}`;
+  }
+
+  bindDifficultyButtons() {
+    document.querySelectorAll('.diff-btn').forEach(btn => {
+      btn.addEventListener('click', () => { this.saveDifficulty(btn.dataset.diff); this.sfx?.click?.(); });
     });
   }
 

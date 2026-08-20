@@ -203,3 +203,38 @@ test('wavePreview: количество совпадает с составом �
     assert.equal(total, waveSpawns(w).length, `волна ${w}: превью не совпадает`);
   }
 });
+
+import { DIFFICULTIES, getDifficulty, DEFAULT_DIFFICULTY } from '../src/config/difficulty.js';
+
+test('сложность: getDifficulty возвращает пресет по id, дефолт = normal', () => {
+  assert.equal(getDifficulty('normal').hpMult, 1);
+  assert.equal(getDifficulty('nonexistent').id, DEFAULT_DIFFICULTY);
+  assert.equal(getDifficulty().id, DEFAULT_DIFFICULTY);
+});
+
+test('сложность: у всех пресетов валидные множители и стартовые', () => {
+  for (const [id, d] of Object.entries(DIFFICULTIES)) {
+    assert.ok(d.hpMult > 0 && d.hpMult < 2, `${id}: hpMult`);
+    assert.ok(d.dmgMult > 0 && d.dmgMult < 2, `${id}: dmgMult`);
+    assert.ok(d.rewardMult > 0 && d.rewardMult < 2, `${id}: rewardMult`);
+    assert.ok(d.speedMult >= 0.5 && d.speedMult <= 2, `${id}: speedMult`);
+    assert.ok(d.startEssence >= 60 && d.startEssence <= 300, `${id}: startEssence`);
+    assert.ok(d.startHp >= 10 && d.startHp <= 50, `${id}: startHp`);
+  }
+});
+
+test('сложность: normal = единичные множители и базовые стартовые', () => {
+  const n = getDifficulty('normal');
+  assert.equal(n.hpMult, 1);
+  assert.equal(n.dmgMult, 1);
+  assert.equal(n.rewardMult, 1);
+  assert.equal(n.startEssence, 120);
+  assert.equal(n.startHp, 20);
+});
+
+test('сложность: easy снижает HP мотылька на волне 10', () => {
+  const easy = getDifficulty('easy');
+  const base = scaledHp(ENEMY_TYPES.moth.hp, 10);
+  assert.ok(scaledHp(ENEMY_TYPES.moth.hp, 10) * easy.hpMult < base, 'лёгкая сложность уменьшает HP');
+});
+

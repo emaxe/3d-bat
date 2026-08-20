@@ -21,6 +21,7 @@ import { Hud, buildBuildBar } from './ui/hud.js';
 import { Menus } from './ui/menu.js';
 import { TowerPanel } from './ui/towerpanel.js';
 import { cachedTextures } from './world/textures.js';
+import { getDifficulty } from './config/difficulty.js';
 import { CameraController } from './managers/cameraController.js';
 import { WaveManager } from './managers/waveManager.js';
 import { BuildSystem } from './managers/buildSystem.js';
@@ -91,6 +92,7 @@ export class Game {
     this.lastPick = null; // последний тап по башне (для циклического перебора)
 
     // прогрессия кампании
+    this.difficulty = getDifficulty();
     this.levelIndex = 0;
     this.levelCfg = LEVELS[0];
     this.essenceBonus = 0;
@@ -108,6 +110,7 @@ export class Game {
       sfx: this.sfx,
       onKill: (e, r) => this.onKill(e, r),
       onCrystalDamage: (dmg, pos) => this.enemyRangedHit(dmg, pos),
+      diffCfg: this.difficulty || getDifficulty(),
       moonSpeedMul: 1, moonRewardMul: 1, moonTowerMul: 1, cloakAll: false,
       towerDmgMul: 1, towerRateMul: 1, buildDiscount: 0,
     };
@@ -121,7 +124,7 @@ export class Game {
     this.hud = new Hud(this.state, this.sfx);
     this.hud.setLevel(this.levelIndex, this.levelCfg.name);
     buildBuildBar(this.levelCfg.unlockedTowers, this.ctx.buildDiscount, (id, def) => this.enterBuildMode(id, def));
-    this.menus = new Menus((endless) => this.startGame(endless));
+    this.menus = new Menus((endless, difficulty) => this.startGame(endless, difficulty));
     this.panel = new TowerPanel(this.state, this.sfx, {
       upgrade: (t) => this.upgradeTower(t),
       merge: (t, partner) => this.mergeTowers(t, partner),
@@ -142,7 +145,7 @@ export class Game {
   }
 
   // ---------- состояние волн ----------
-  startGame(endless = false) {
+  startGame(endless = false, difficultyId) {
     this.sfx.init();
     this.music.start();
     this.running = true;
@@ -156,9 +159,11 @@ export class Game {
       return;
     }
     // полный сброс кампании
+    this.difficulty = getDifficulty(difficultyId);
+    this.ctx.diffCfg = this.difficulty;
     this.essenceBonus = 0;
     this.levelUpgrades = [];
-    this.state.maxHp = ECONOMY.startHp;
+    this.state.maxHp = this.difficulty.startHp;
     this.ctx.towerDmgMul = 1;
     this.ctx.towerRateMul = 1;
     this.ctx.buildDiscount = 0;
@@ -202,7 +207,7 @@ export class Game {
     this.state.paused = false;
     this.state.combo = 0;
     this.state.crystalHp = this.state.maxHp;
-    this.state.essence = Math.max(ECONOMY.startEssence + this.essenceBonus, this.state.essence);
+    this.state.essence = Math.max(this.difficulty.startEssence + this.essenceBonus, this.state.essence);
     this.state.emit('combo', 0);
     this.state.emit('hp', this.state.crystalHp, this.state.maxHp);
     this.state.emit('essence', this.state.essence);

@@ -442,11 +442,11 @@ export class Enemy {
     this.typeId = typeId;
     const def = ENEMY_TYPES[typeId];
     const endless = wave > 10;
-    this.maxHp = Math.round(scaledHp(def.hp, wave, endless));
+    this.maxHp = Math.round(scaledHp(def.hp, wave, endless) * (worldCtx.diffCfg?.hpMult ?? 1));
     this.hp = this.maxHp;
     this.baseSpeed = def.speed;
-    this.reward = Math.round(scaledReward(def.reward, wave, endless) * (worldCtx.moonRewardMul ?? 1));
-    this.dmg = def.dmg;
+    this.reward = Math.round(scaledReward(def.reward, wave, endless) * (worldCtx.moonRewardMul ?? 1) * (worldCtx.diffCfg?.rewardMult ?? 1));
+    this.dmg = def.dmg * (worldCtx.diffCfg?.dmgMult ?? 1);
     this.armor = def.armor;
     this.heal = def.heal || 0;
     this.r = def.r * (def.boss ? 1.35 : 1);
@@ -463,7 +463,7 @@ export class Enemy {
     this.effects = { slow: null, poison: 0, poisonT: 0, burn: 0, burnT: 0, vuln: 0, vulnT: 0, revealed: 0, lure: null };
     this.cloaked = worldCtx.cloakAll ? true : def.cloaked;
     this.worldCtx = worldCtx;
-    this.ranged = def.ranged || null;
+    this.ranged = def.ranged ? { ...def.ranged, dmg: def.ranged.dmg * (worldCtx.diffCfg?.dmgMult ?? 1) } : null;
     if (this.ranged) {this.rangedCd = 0;}
     this.healAura = def.healAura || 0;
     this.healAuraR = def.healAuraR || 0;
@@ -516,6 +516,7 @@ export class Enemy {
     const slow = this.effects.slow ? this.effects.slow.mult : 0;
     let s = effectiveSpeed(this.baseSpeed, slow);
     if (this.worldCtx.moonSpeedMul) {s *= this.worldCtx.moonSpeedMul;}
+    if (this.worldCtx.diffCfg?.speedMult) { s *= this.worldCtx.diffCfg.speedMult; }
     return s;
   }
 
