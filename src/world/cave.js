@@ -182,13 +182,8 @@ export function buildCave(cfg = null, path = null) {
     spr.scale.setScalar(1.1);
     scene.add(spr);
     torchSprites.push(spr);
-    // настоящий свет — только у первых двух (остальные визуальные, дёшево)
-    if (i < 2) {
-      const l = new THREE.PointLight(theme.torch ?? 0xffb066, 230, 9, 2);
-      l.position.set(spot.x, y, spot.z);
-      scene.add(l);
-      torches.push(l);
-    }
+    // Не добавляем точечный свет у факелов: это ломает лимит ≤5 PointLight на
+    // мобильных и ведёт к «не хватило памяти GPU». Визуального спрайта достаточно.
   }
 
   // --- материалы ---
