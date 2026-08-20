@@ -191,8 +191,11 @@ export function glowTexture(color = '#ffffff', inner = '#ffffff') {
   return t;
 }
 
-// Кольцо (сонар, ауры).
+// Кольцо (сонар, ауры). Кэшируется по цвету; регистрируется в cachedTextures,
+// чтобы disposeScene() НЕ уничтожил текстуру при переходе между уровнями.
+const ringCache = new Map();
 export function ringTexture(color = '#66e0ff') {
+  if (ringCache.has(color)) {return ringCache.get(color);}
   const [c, g] = canvas2d(128, 128);
   g.clearRect(0, 0, 128, 128);
   const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
@@ -205,11 +208,16 @@ export function ringTexture(color = '#66e0ff') {
   g.fillRect(0, 0, 128, 128);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  cachedTextures.add(t);
+  ringCache.set(color, t);
   return t;
 }
 
 // Мягкая тень-пятно под объектами (фейк-тени вместо shadow mapping).
+// Одна общая текстура на всю игру — кэш + регистрация в cachedTextures.
+let shadowTexCached = null;
 export function shadowTexture() {
+  if (shadowTexCached) {return shadowTexCached;}
   const [c, g] = canvas2d(64, 64);
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   grad.addColorStop(0, 'rgba(0,0,0,0.55)');
@@ -218,6 +226,8 @@ export function shadowTexture() {
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 64);
   const t = new THREE.CanvasTexture(c);
+  cachedTextures.add(t);
+  shadowTexCached = t;
   return t;
 }
 

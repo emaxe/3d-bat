@@ -12,6 +12,30 @@ function glowMap(color) {
 
 const RADIUS = 0.16;
 
+// Разделяемые геометрии снарядов (zero-alloc: не создаём при каждом выстреле).
+const sharedSphereGeo = new THREE.SphereGeometry(RADIUS, 8, 8);
+const sharedRingGeo = new THREE.RingGeometry(0.92, 1, 40);
+
+// Разделяемые материалы снарядов по цвету (keyed, создаются один раз).
+const sharedProjMat = new Map();
+function projMaterial(color) {
+  if (!sharedProjMat.has(color)) {
+    sharedProjMat.set(color, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 }));
+  }
+  return sharedProjMat.get(color);
+}
+// Разделяемые материалы импульсов по цвету.
+const sharedRingMat = new Map();
+function ringMaterial(color) {
+  if (!sharedRingMat.has(color)) {
+    sharedRingMat.set(color, new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    }));
+  }
+  return sharedRingMat.get(color);
+}
+
 export class Projectile {
   constructor(scene, opts) {
     this.kind = opts.kind || 'bolt';
@@ -32,9 +56,9 @@ export class Projectile {
     this.chain = opts.chain || 0;
     this.chainRange = opts.chainRange || 4;
 
-    // визуал
-    const mat = new THREE.MeshBasicMaterial({ color: this.color, transparent: true, opacity: 0.95 });
-    this.mesh = new THREE.Mesh(new THREE.SphereGeometry(RADIUS, 8, 8), mat);
+    // визуал (разделяемые геометрия + материал по цвету — без per-shot аллокаций)
+    const mat = projMaterial(this.color);
+    this.mesh = new THREE.Mesh(sharedSphereGeo, mat);
     this.mesh.position.copy(this.pos);
     this.glow = new THREE.Sprite(new THREE.SpriteMaterial({
       map: glowMap(this.color), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
@@ -60,8 +84,8 @@ export class Projectile {
     }
     const tPos = this.target?.alive ? this.target.pos : this.target?.pos;
     if (!tPos) { this.kill(); return; }
-    const dir = tPos.clone().sub(this.pos);
-    const dist = dir.len();
+    const dir = _tmpDir.subVectors(tPos, this.pos);
+    const dist = dir.length();
     if (dist < 0.01) { this.hit(); return; }
     const step = this.speed * dt;
     if (step >= dist) {
@@ -69,7 +93,7 @@ export class Projectile {
       this.hit();
       return;
     }
-    this.pos.add(dir.normalize().scale(step));
+    this.pos.add(dir.normalize().multiplyScalar(step));
     this.mesh.position.copy(this.pos);
     // Лёгкий trail: пульсация свечения
     const pulse = 1 + Math.sin(performance.now() * 0.02) * 0.15;
@@ -90,9 +114,8 @@ export class Projectile {
   }
 
   dispose() {
+    // Разделяемые геометрия/материал НЕ диспозим — они общие для всех снарядов.
     this.mesh.removeFromParent();
-    this.mesh.geometry.dispose();
-    this.mat.dispose();
     this.glow.material.dispose();
   }
 }
@@ -107,11 +130,8 @@ export class PulseRing {
     this.dead = false;
     this.onExpand = opts.onExpand || null;
     this.done = false;
-    const ringGeo = new THREE.RingGeometry(0.92, 1, 40);
-    this.mesh = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
-      color: opts.color, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    }));
+    // Разделяемые геометрия + материал по цвету.
+    this.mesh = new THREE.Mesh(sharedRingGeo, ringMaterial(opts.color));
     this.mesh.rotation.x = -Math.PI / 2;
     this.mesh.position.copy(this.pos);
     this.mesh.position.y += 0.4;
@@ -135,8 +155,10 @@ export class PulseRing {
   }
 
   dispose() {
+    // Разделяемые геометрия/материал общие — не диспозим.
     this.mesh.removeFromParent();
-    this.mesh.geometry.dispose();
-    this.mesh.material.dispose();
   }
 }
+
+// Временный вектор для расчёта направления (избегаем аллокаций в hot loop).
+const _tmpDir = new THREE.Vector3();
