@@ -100,7 +100,32 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
   }));
   eyeGlow.position.set(0, 0.03, 0.25);
   eyeGlow.scale.setScalar(0.35);
+  eyeGlow.userData.pickable = false;
   g.add(eyeGlow);
+
+  // Печать Ордена над постаментом (символ Стражей Кристалла) — общее для всех башен
+  const sealGeo = getSharedGeo('sealOcta', () => new THREE.OctahedronGeometry(0.05, 0));
+  const sealMat = new THREE.MeshBasicMaterial({ color: '#8ff0ff' });
+  const sealMesh = new THREE.Mesh(sealGeo, sealMat);
+  sealMesh.position.set(0, -0.15, 0.20);
+  sealMesh.userData.pickable = false;
+
+  const sealGlowTex = glowTexture('#8ff0ff', '#ffffff');
+  const sealGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: sealGlowTex,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true,
+    opacity: 0.3,
+  }));
+  sealGlow.position.set(0, -0.15, 0.21);
+  sealGlow.scale.setScalar(0.22);
+  sealGlow.userData.pickable = false;
+  sealMesh.userData.glow = sealGlow;
+
+  g.add(sealMesh);
+  g.add(sealGlow);
+  const seal = sealMesh;
 
   // Массивы и хуки для userData
   const spinRings = [];
@@ -115,17 +140,46 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
   let fangs = [];
   let eyeGlowSprite = eyeGlow;
 
+  // Дополнительные лорные хуки
+  const membranes = [];
+  let hornGlow = null;
+  let frostBreath = null;
+  const sporeMotes = [];
+  const echoRunes = [];
+  let gemGlow = null;
+  const embers = [];
+  let coalGlow = null;
+  let beam = null;
+  let ruby = null;
+
   // ---- ТИПОВЫЕ МОДЕЛИ И СИГНАТУРНЫЕ СИЛУЭТЫ ----
   if (typeId === 'screamer') {
     // Визгун (красный): 2 сонарных уха-воронки по бокам, сонарный рупор на +Z, резонаторные дуги сзади (-Z)
     const funnelMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).multiplyScalar(0.75), roughness: 0.4 });
     const funnelGeo = getSharedGeo('screamerFunnel', () => new THREE.ConeGeometry(0.08, 0.18, 6, 1, true));
+    const membraneGeo = getSharedGeo('screamerMembrane', () => new THREE.CircleGeometry(0.065, 8));
+    const membraneMat = new THREE.MeshBasicMaterial({
+      color: glow,
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
     for (const side of [-1, 1]) {
       const fn = new THREE.Mesh(funnelGeo, funnelMat);
       fn.position.set(side * 0.16, 0.22, 0.08);
       fn.rotation.z = side * 0.5;
       fn.rotation.x = -0.3;
       g.add(fn);
+
+      // Мембраны внутри воронок-ушей
+      const memb = new THREE.Mesh(membraneGeo, membraneMat);
+      memb.position.set(side * 0.16, 0.26, 0.07);
+      memb.rotation.z = side * 0.5;
+      memb.rotation.x = -0.3 + Math.PI / 2;
+      memb.userData.pickable = false;
+      g.add(memb);
+      membranes.push(memb);
     }
     // Сонарный рупор на +Z (перед мордой)
     const hornGroup = new THREE.Group();
@@ -137,6 +191,22 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
     const coneCore = new THREE.Mesh(coneCoreGeo, new THREE.MeshBasicMaterial({ color }));
     coneCore.rotation.x = Math.PI / 2;
     hornGroup.add(coneCore);
+
+    // Glow-спрайт на срезе рупора
+    const hornGlowTex = glowTexture(glow, '#ffffff');
+    const hornSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: hornGlowTex,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.55,
+    }));
+    hornSprite.position.set(0, 0, 0.06);
+    hornSprite.scale.setScalar(0.28);
+    hornSprite.userData.pickable = false;
+    hornGroup.add(hornSprite);
+    hornGlow = hornSprite;
+
     g.add(hornGroup);
     horn = hornGroup;
 
@@ -148,6 +218,7 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
       const ring = new THREE.Mesh(arcGeo, arcMat);
       ring.position.set(0, 0.05 + i * 0.04, -0.1 - i * 0.05);
       ring.rotation.x = Math.PI / 3;
+      ring.userData.pickable = false;
       g.add(ring);
       spinRings.push(ring);
     }
@@ -174,6 +245,18 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
       g.add(oct);
       crystals.push(oct);
     }
+    // Бахрома сосулек под брюхом (4 конуса вниз)
+    const icicleGeo = getSharedGeo('frostIcicle', () => new THREE.ConeGeometry(0.025, 0.12, 4));
+    const icicleMat = iceMat.clone();
+    for (let i = 0; i < 4; i++) {
+      const icicle = new THREE.Mesh(icicleGeo, icicleMat);
+      const offsetX = (i - 1.5) * 0.07;
+      icicle.position.set(offsetX, -0.18, 0.02 - Math.abs(offsetX) * 0.2);
+      icicle.rotation.x = Math.PI;
+      icicle.scale.set(0.8, 0.8 + (i % 2) * 0.4, 0.8);
+      icicle.userData.pickable = false;
+      g.add(icicle);
+    }
     // Ледяные края крыльев
     const wingIceMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.8 });
     const spikeGeo = getSharedGeo('coneSpike', () => new THREE.ConeGeometry(0.04, 0.2, 5));
@@ -182,8 +265,23 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
       spk.position.set(side * 0.26, 0.12, 0.02);
       spk.scale.set(0.6, 0.7, 0.6);
       spk.rotation.z = side * -0.6;
+      spk.userData.pickable = false;
       g.add(spk);
     }
+    // Морозное дыхание впереди (+Z)
+    const breathTex = glowTexture(glow, '#ffffff');
+    const breathSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: breathTex,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.15,
+    }));
+    breathSprite.position.set(0, -0.02, 0.36);
+    breathSprite.scale.setScalar(0.38);
+    breathSprite.userData.pickable = false;
+    g.add(breathSprite);
+    frostBreath = breathSprite;
   } else if (typeId === 'spore') {
     // Спора (ядовито-зелёный): грибная шляпка на голове, мицелий, мини-грибки на плечах
     const capGroup = new THREE.Group();
@@ -201,8 +299,34 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
       spot.position.set(Math.cos(angle) * 0.08, 0.06, Math.sin(angle) * 0.08);
       capGroup.add(spot);
     }
+    // Гименофор под шляпкой (кольцо из 6 мини-конусов, тёмно-зелёный)
+    const hymenMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color).multiplyScalar(0.35),
+      roughness: 0.8,
+    });
+    const hymenGeo = getSharedGeo('sporeHymen', () => new THREE.ConeGeometry(0.02, 0.05, 4));
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const hc = new THREE.Mesh(hymenGeo, hymenMat);
+      hc.position.set(Math.cos(angle) * 0.09, -0.01, Math.sin(angle) * 0.09);
+      hc.rotation.x = Math.PI;
+      hc.userData.pickable = false;
+      capGroup.add(hc);
+    }
+
     g.add(capGroup);
     cap = capGroup;
+
+    // 3 парящие споринки вокруг шляпки
+    const moteGeo = getSharedGeo('sporeMote', () => new THREE.SphereGeometry(0.025, 5, 5));
+    const moteMat = new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.85 });
+    for (let i = 0; i < 3; i++) {
+      const mote = new THREE.Mesh(moteGeo, moteMat);
+      mote.position.set(0, 0.28, 0.02);
+      mote.userData.pickable = false;
+      g.add(mote);
+      sporeMotes.push(mote);
+    }
 
     // Мини-грибки по бокам (L2: +1, L3: +2)
     const miniMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).multiplyScalar(0.85), roughness: 0.6 });
@@ -230,6 +354,31 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
     gem.position.set(0, 0.05, 0.22);
     g.add(gem);
 
+    // Glow-спрайт у кристалла
+    const gemGlowTex = glowTexture(glow, '#ffffff');
+    const gemGlowSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: gemGlowTex,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.5,
+    }));
+    gemGlowSprite.position.set(0, 0.05, 0.24);
+    gemGlowSprite.scale.setScalar(0.35);
+    gemGlowSprite.userData.pickable = false;
+    g.add(gemGlowSprite);
+    gemGlow = gemGlowSprite;
+
+    // 4 парящие руны-тетраэдра вокруг кристалла
+    const runeGeo = getSharedGeo('echoRune', () => new THREE.TetrahedronGeometry(0.032, 0));
+    const runeMat = new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.85 });
+    for (let i = 0; i < 4; i++) {
+      const rune = new THREE.Mesh(runeGeo, runeMat);
+      rune.userData.pickable = false;
+      g.add(rune);
+      echoRunes.push(rune);
+    }
+
     // Парящие сонарные кольца (L1: 1, L2: 2, L3: 3)
     const ringCount = level + (isAlpha ? 1 : 0);
     for (let i = 0; i < ringCount; i++) {
@@ -255,6 +404,7 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
       flame.scale.set(0.9, 1.2 + (i % 2) * 0.3, 0.9);
       flame.rotation.x = -0.4;
       flame.rotation.z = offsetX * -0.5;
+      flame.userData.pickable = false;
       g.add(flame);
       flames.push(flame);
     }
@@ -269,6 +419,38 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
     const ember = new THREE.Mesh(octSmallGeo, coalMat);
     ember.position.set(0, 0.04, 0.22);
     g.add(ember);
+
+    // Пульсирующий glow-спрайт угля на груди
+    const coalGlowTex = glowTexture('#ff5500', '#ffffff');
+    const coalGlowSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: coalGlowTex,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.55,
+    }));
+    coalGlowSprite.position.set(0, 0.04, 0.24);
+    coalGlowSprite.scale.setScalar(0.32);
+    coalGlowSprite.userData.pickable = false;
+    g.add(coalGlowSprite);
+    coalGlow = coalGlowSprite;
+
+    // 3 искры-спрайта над пламенем
+    const sparkTex = glowTexture('#ffaa22', '#ffffff');
+    for (let i = 0; i < 3; i++) {
+      const spark = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: sparkTex,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.8,
+      }));
+      spark.scale.setScalar(0.09);
+      spark.userData.pickable = false;
+      spark.userData.baseX = (i - 1) * 0.07;
+      g.add(spark);
+      embers.push(spark);
+    }
   } else if (typeId === 'lantern') {
     // Фонарь (золотисто-янтарный): фонарь-кристалл на переднем роге (+Z), орбитальные огоньки
     const rodGeo = getSharedGeo('lanternRod', () => new THREE.CylinderGeometry(0.02, 0.03, 0.22, 6));
@@ -292,6 +474,45 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
     lanternGroup.add(cage);
     g.add(lanternGroup);
     lantern = lanternGroup;
+
+    // Луч света из фонаря вниз-вперёд (+Z, открытый конус с аддитивным сиянием)
+    const beamGeo = getSharedGeo('lanternBeam', () => {
+      const cone = new THREE.ConeGeometry(0.16, 0.5, 10, 1, true);
+      cone.translate(0, -0.25, 0);
+      return cone;
+    });
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: '#fff0a0',
+      transparent: true,
+      opacity: 0.12,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+    beamMesh.position.set(0, 0.28, 0.28);
+    beamMesh.rotation.x = -1.1; // наклон вниз-вперёд на +Z
+    beamMesh.userData.pickable = false;
+
+    // 2 пылинки внутри луча света
+    const dustTex = glowTexture('#fff6c8', '#ffffff');
+    const motes = [];
+    for (let i = 0; i < 2; i++) {
+      const dust = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: dustTex,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.35,
+      }));
+      dust.scale.setScalar(0.08);
+      dust.userData.pickable = false;
+      g.add(dust);
+      motes.push(dust);
+    }
+    beamMesh.userData.motes = motes;
+    g.add(beamMesh);
+    beam = beamMesh;
 
     // Орбитальные огоньки (L1: 1, L2: 2, L3: 3)
     const orbCount = level + (isAlpha ? 1 : 0);
@@ -317,6 +538,18 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
     collar.rotation.x = -0.2;
     g.add(collar);
 
+    // Изморозь-иней на воротнике (3 белых полупрозрачных конуса по кромке)
+    const rimeGeo = getSharedGeo('vampCollarRime', () => new THREE.ConeGeometry(0.02, 0.08, 4));
+    const rimeMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.65 });
+    for (let i = 0; i < 3; i++) {
+      const rime = new THREE.Mesh(rimeGeo, rimeMat);
+      const side = (i - 1) * 0.11;
+      rime.position.set(side, 0.16 + collarHeight * 0.85, -0.1 - (1 - Math.abs(i - 1)) * 0.04);
+      rime.rotation.x = -0.3;
+      rime.userData.pickable = false;
+      g.add(rime);
+    }
+
     // Костяные шипы на воротнике (L2: +2, L3: +4)
     const fangGeo = getSharedGeo('fang', () => new THREE.ConeGeometry(0.025, 0.13, 4));
     if (level >= 2 || isAlpha) {
@@ -329,6 +562,7 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
         spk.position.set(side * (0.12 + idx * 0.05), 0.28 + idx * 0.08, -0.14);
         spk.rotation.z = side * -0.4;
         spk.rotation.x = -0.5;
+        spk.userData.pickable = false;
         g.add(spk);
       }
     }
@@ -342,6 +576,30 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
       g.add(fang);
       fangs.push(fang);
     }
+
+    // Рубин на лбу (+Z, октаэдр 0.03, #ff2244) + glow
+    const rubyGeo = getSharedGeo('vampRuby', () => new THREE.OctahedronGeometry(0.03, 0));
+    const rubyMat = new THREE.MeshBasicMaterial({ color: '#ff2244' });
+    const rubyMesh = new THREE.Mesh(rubyGeo, rubyMat);
+    rubyMesh.position.set(0, 0.12, 0.24);
+    rubyMesh.userData.pickable = false;
+
+    const rubyGlowTex = glowTexture('#ff2244', '#ffffff');
+    const rubyGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: rubyGlowTex,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.6,
+    }));
+    rubyGlow.position.set(0, 0.12, 0.25);
+    rubyGlow.scale.setScalar(0.18);
+    rubyGlow.userData.pickable = false;
+    rubyMesh.userData.glow = rubyGlow;
+
+    g.add(rubyMesh);
+    g.add(rubyGlow);
+    ruby = rubyMesh;
   }
 
   // Пипсы уровня (3 шт)
@@ -391,6 +649,17 @@ export function buildTowerMesh(typeId, level, isAlpha = false) {
     collar,
     fangs,
     eyeGlow: eyeGlowSprite,
+    seal,
+    membranes,
+    hornGlow,
+    frostBreath,
+    sporeMotes,
+    echoRunes,
+    gemGlow,
+    embers,
+    coalGlow,
+    beam,
+    ruby,
   };
   return g;
 }
@@ -530,8 +799,27 @@ export class Tower {
     // Анимация деталей по userData-хукам
     const ud = this.mesh.userData;
 
+    // Печать Ордена над постаментом (вращение кристалла + пульсация сияния)
+    if (ud.seal) {
+      ud.seal.rotation.y += dt;
+      if (ud.seal.userData?.glow) {
+        ud.seal.userData.glow.material.opacity = 0.3 + 0.15 * Math.sin(this.t * 2.5);
+      }
+    }
+
     if (ud.horn) {
       ud.horn.rotation.x = Math.sin(this.t * 3.5) * 0.08;
+    }
+    if (ud.membranes && ud.membranes.length > 0) {
+      ud.membranes.forEach((m, i) => {
+        const trem = 1 + Math.sin(this.t * 18 + i * Math.PI) * 0.12;
+        m.scale.set(trem, trem, 1);
+      });
+    }
+    if (ud.hornGlow) {
+      const hornBreath = 0.28 * (1 + Math.sin(this.t * 3.5) * 0.2);
+      ud.hornGlow.scale.setScalar(hornBreath);
+      ud.hornGlow.material.opacity = 0.45 + Math.sin(this.t * 7) * 0.2;
     }
     if (ud.spinRings && ud.spinRings.length > 0) {
       ud.spinRings.forEach((r, i) => {
@@ -543,14 +831,45 @@ export class Tower {
         c.rotation.y = Math.sin(this.t * 2 + i) * 0.15;
       });
     }
+    if (ud.frostBreath) {
+      ud.frostBreath.material.opacity = 0.12 + 0.1 * Math.sin(this.t * 1.5);
+      ud.frostBreath.position.z = 0.36 + Math.sin(this.t * 1.2) * 0.03;
+    }
     if (ud.cap) {
       const breath = 1 + Math.sin(this.t * 3) * 0.06;
       ud.cap.scale.set(breath, 1 + Math.sin(this.t * 3 + 1) * 0.08, breath);
+    }
+    if (ud.sporeMotes && ud.sporeMotes.length > 0) {
+      ud.sporeMotes.forEach((m, i) => {
+        const a = this.t * 0.6 + i;
+        m.position.set(
+          Math.cos(a) * 0.22,
+          0.28 + Math.sin(this.t * 1.5 + i * 2) * 0.04,
+          0.02 + Math.sin(a) * 0.22
+        );
+      });
     }
     if (ud.gem) {
       ud.gem.rotation.y += dt * 1.2;
       const pulse = 1 + Math.sin(this.t * 4) * 0.08;
       ud.gem.scale.set(0.8 * pulse, 1.3 * pulse, 0.8 * pulse);
+    }
+    if (ud.gemGlow) {
+      const gemPulse = 1 + Math.sin(this.t * 4) * 0.08;
+      ud.gemGlow.scale.setScalar(0.35 * gemPulse);
+      ud.gemGlow.material.opacity = 0.4 + Math.sin(this.t * 4) * 0.18;
+    }
+    if (ud.echoRunes && ud.echoRunes.length > 0) {
+      ud.echoRunes.forEach((r, i) => {
+        const a = -this.t * 1.4 + (i / 4) * Math.PI * 2;
+        r.position.set(
+          Math.cos(a) * 0.17,
+          0.05 + Math.sin(this.t * 2.5 + i) * 0.03,
+          0.22 + Math.sin(a) * 0.17
+        );
+        r.rotation.x += dt * 1.5;
+        r.rotation.y += dt * 2.0;
+      });
     }
     if (ud.flames && ud.flames.length > 0) {
       ud.flames.forEach((f, i) => {
@@ -558,9 +877,41 @@ export class Tower {
         f.scale.x = 0.9 * (1 + Math.cos(this.t * 8 + i) * 0.12);
       });
     }
+    if (ud.coalGlow) {
+      const coalPulse = 0.32 + Math.sin(this.t * 5) * 0.05;
+      ud.coalGlow.scale.setScalar(coalPulse);
+      ud.coalGlow.material.opacity = 0.45 + Math.sin(this.t * 6) * 0.18;
+    }
+    if (ud.embers && ud.embers.length > 0) {
+      ud.embers.forEach((spk, i) => {
+        const phase = ((this.t * 0.8 + i / 3) % 1);
+        const bx = spk.userData.baseX ?? (i - 1) * 0.07;
+        spk.position.set(
+          bx + Math.sin(this.t * 3 + i) * 0.02,
+          0.26 + phase * 0.3,
+          -0.08 + Math.cos(this.t * 2 + i) * 0.02
+        );
+        spk.material.opacity = (1 - phase) * 0.8;
+        spk.scale.setScalar(0.06 + (1 - phase) * 0.04);
+      });
+    }
     if (ud.lantern) {
       ud.lantern.rotation.z = Math.sin(this.t * 2.2) * 0.12;
       ud.lantern.rotation.x = Math.cos(this.t * 1.8) * 0.08;
+    }
+    if (ud.beam) {
+      ud.beam.material.opacity = 0.10 + 0.05 * Math.sin(this.t * 2);
+      if (ud.beam.userData?.motes) {
+        ud.beam.userData.motes.forEach((m, i) => {
+          const progress = ((this.t * 0.35 + i * 0.5) % 1);
+          m.position.set(
+            Math.sin(this.t * 1.2 + i * 2) * 0.04,
+            0.26 - progress * 0.22,
+            0.30 + progress * 0.25
+          );
+          m.material.opacity = Math.sin(progress * Math.PI) * 0.35;
+        });
+      }
     }
     if (ud.orbitOrbs && ud.orbitOrbs.length > 0) {
       const len = ud.orbitOrbs.length;
@@ -571,6 +922,14 @@ export class Tower {
     }
     if (ud.collar) {
       ud.collar.rotation.z = Math.sin(this.t * 1.8) * 0.04;
+    }
+    if (ud.ruby) {
+      const rubyPulse = 1 + Math.sin(this.t * 3.5) * 0.15;
+      ud.ruby.scale.setScalar(rubyPulse);
+      if (ud.ruby.userData?.glow) {
+        ud.ruby.userData.glow.scale.setScalar(0.18 * rubyPulse);
+        ud.ruby.userData.glow.material.opacity = 0.45 + Math.sin(this.t * 3.5) * 0.2;
+      }
     }
     if (ud.eyeGlow) {
       const pulse = 0.35 + Math.sin(this.t * 4) * 0.08;
