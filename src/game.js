@@ -9,6 +9,7 @@ import { killReward, ECONOMY, waveClearReward } from './core/economy.js';
 import { wavePreview, TOTAL_WAVES } from './core/waves.js';
 import { ENEMY_TYPES } from './core/enemies.js';
 import { LEVELS, CRYSTAL, buildLevelPath } from './core/layout.js';
+import { TUTORIAL_HINTS, TUTORIAL_SEEN_KEY } from './config/story.js';
 import { UPGRADE_POOL, pickUpgrades } from './core/upgrades.js';
 import { mulberry32 } from './core/rng.js';
 import { Enemy } from './entities/enemy.js';
@@ -271,6 +272,23 @@ export class Game {
 
   startWave(wave) {
     this.waves.startWave(wave, this.ctx);
+    this.maybeTutorial(wave);
+  }
+
+  // Обучение для новичков: тосты в первые волны кампании (только уровень 1,
+  // не блокируют геймплей). После первой кампании больше не показываем.
+  maybeTutorial(wave) {
+    if (!this.hud) return;
+    if (this.levelIndex !== 0 || this.continuing) return;
+    let seen = false;
+    try { seen = localStorage.getItem(TUTORIAL_SEEN_KEY) === '1'; } catch { /* приватный режим */ }
+    if (seen) return;
+    for (const h of TUTORIAL_HINTS) {
+      if (h.wave === wave) this.hud.showToast(h.text, h.color, 2600);
+    }
+    if (wave >= 3) {
+      try { localStorage.setItem(TUTORIAL_SEEN_KEY, '1'); } catch { /* приватный режим */ }
+    }
   }
 
   waveCleared() {

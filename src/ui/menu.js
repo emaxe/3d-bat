@@ -1,10 +1,13 @@
-// Меню: старт, поражение, победа (endless), прогресс кампании.
+// Меню: старт, поражение, победа (endless), прогресс кампании, история/лор.
+import { STORY_LORE } from '../config/story.js';
+
 export class Menus {
   constructor(onStart) {
     this.onStart = onStart;
     this.menuEl = document.getElementById('menu');
     this.overEl = document.getElementById('gameover');
     this.winEl = document.getElementById('win');
+    this.storyEl = document.getElementById('story');
     document.getElementById('btn-start').addEventListener('click', () => {
       this.menuEl.classList.remove('show');
       this.onStart();
@@ -21,6 +24,33 @@ export class Menus {
       this.winEl.classList.remove('show');
       this.onStart(true);
     });
+    document.getElementById('btn-story')?.addEventListener('click', () => {
+      this.showStory();
+    });
+    document.getElementById('btn-story-close')?.addEventListener('click', () => {
+      this.storyEl?.classList.remove('show');
+    });
+  }
+
+  // Отрисовка и открытие оверлея «История и лор».
+  showStory() {
+    const set = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+    set('story-prologue', STORY_LORE.prologue);
+    set('story-guardians', STORY_LORE.guardians);
+    set('story-enemies', STORY_LORE.enemies);
+    const levelsEl = document.getElementById('story-levels');
+    if (levelsEl) {
+      levelsEl.innerHTML = '';
+      for (const lv of STORY_LORE.levels) {
+        const b = document.createElement('div');
+        b.innerHTML = `<b style="color:var(--accent);">${lv.name}:</b> ${lv.text}`;
+        levelsEl.appendChild(b);
+      }
+    }
+    this.storyEl?.classList.add('show');
   }
 
   showMenu() {
