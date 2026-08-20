@@ -78,10 +78,69 @@ function findBoulder(rnd, path, minR, maxR, clearance, tailNo) {
   return null;
 }
 
+// Минимальное XZ-расстояние от точки до всех насестов уровня.
+function minDistToPerches(perches, x, z) {
+  if (!perches || perches.length === 0) {return Infinity;}
+  let best = Infinity;
+  for (let i = 0; i < perches.length; i++) {
+    const p = perches[i].pos;
+    const dist = Math.hypot(p.x - x, p.z - z);
+    if (dist < best) {best = dist;}
+  }
+  return best;
+}
+
+// Универсальное размещение процедурного декора с проверкой отступа от пути и насестов.
+function placeDecor(rnd, path, perches, kind, geo, mat, count, opts) {
+  const items = [];
+  const scene = opts.scene;
+  const decor = opts.decor;
+  const tries = opts.tries ?? 40;
+  for (let i = 0; i < count; i++) {
+    let spot = null;
+    for (let t = 0; t < tries; t++) {
+      const candidate = findSpot(rnd, path, opts.minR, opts.maxR, opts.clearance, 1);
+      if (!candidate) {continue;}
+      if (opts.perchClearance != null && minDistToPerches(perches, candidate.x, candidate.z) < opts.perchClearance) {
+        continue;
+      }
+      spot = candidate;
+      break;
+    }
+    if (!spot) {continue;}
+
+    let obj;
+    if (opts.create) {
+      obj = opts.create(spot, i, rnd);
+    } else {
+      obj = new THREE.Mesh(geo, mat);
+      const y = typeof opts.y === 'function' ? opts.y(spot, i, rnd) : (opts.y ?? opts.floorY ?? -1.35);
+      obj.position.set(spot.x, y, spot.z);
+      if (opts.rotation) {
+        if (typeof opts.rotation === 'function') {opts.rotation(obj, spot, i, rnd);}
+        else if (Array.isArray(opts.rotation)) {obj.rotation.set(...opts.rotation);}
+      }
+      if (opts.scale) {
+        if (typeof opts.scale === 'function') {opts.scale(obj, spot, i, rnd);}
+        else if (typeof opts.scale === 'number') {obj.scale.setScalar(opts.scale);}
+        else if (Array.isArray(opts.scale)) {obj.scale.set(...opts.scale);}
+      }
+    }
+    if (obj) {
+      if (scene) {scene.add(obj);}
+      const entry = { mesh: obj, x: spot.x, z: spot.z, kind };
+      if (decor) {decor.push({ kind, x: spot.x, z: spot.z });}
+      items.push(entry);
+    }
+  }
+  return items;
+}
+
 export function buildCave(cfg = null, path = null) {
   const L = cfg ?? LEVELS[0];
   const theme = L.theme ?? LEVELS[0].theme;
   const usePath = path ?? new Path(L.pathPoints);
+  const perches = L.perches ?? [];
   const FLOOR_Y = -1.35;
 
   const scene = new THREE.Scene();
@@ -314,6 +373,166 @@ export function buildCave(cfg = null, path = null) {
     decor.push({ kind: 'spire', x: spot.x, z: spot.z });
   }
 
+  // --- а) stalactite (сталактиты с потолка, статика) ---
+  const stalactiteGeo = new THREE.ConeGeometry(0.3, 1.8, 5);
+  const stalactiteItems = placeDecor(rnd, usePath, perches, 'stalactite', stalactiteGeo, rockMat, 12, {
+    scene, decor, minR: 9, maxR: 19, clearance: 4.5,
+    y: () => 6.5 + rnd() * 2,
+    rotation: (m) => {
+      m.rotation.x = Math.PI;
+      m.rotation.y = rnd() * Math.PI * 2;
+    },
+    scale: (m) => {
+      const sXZ = 0.8 + rnd() * 0.5;
+      m.scale.set(sXZ, 0.7 + rnd() * 0.9, sXZ);
+    },
+  });
+  const stalactites = stalactiteItems.map(it => it.mesh);
+
+  // --- б) crystal_cluster (кристальные гроздья, акцент темы) ---
+  const crystalGeo = new THREE.OctahedronGeometry(0.3, 0);
+  const crystalClusterItems = placeDecor(rnd, usePath, perches, 'crystal_cluster', null, null, 6, {
+    scene, decor, minR: 9, maxR: 18, clearance: 5.0, perchClearance: 2.2,
+    create: (spot) => {
+      const g = new THREE.Group();
+      const numCrystals = 3 + Math.floor(rnd() * 3);
+      for (let c = 0; c < numCrystals; c++) {
+        const m = new THREE.Mesh(crystalGeo, druzeMat);
+        const ang = (c / numCrystals) * Math.PI * 2 + rnd() * 0.5;
+        const rad = 0.15 + rnd() * 0.2;
+        m.position.set(Math.cos(ang) * rad, (rnd() - 0.2) * 0.15, Math.sin(ang) * rad);
+        const s = (0.2 + rnd() * 0.2) / 0.3;
+        m.scale.set(s * (0.8 + rnd() * 0.4), s * (1.1 + rnd() * 0.7), s * (0.8 + rnd() * 0.4));
+        m.rotation.set((rnd() - 0.5) * 0.5, rnd() * Math.PI, (rnd() - 0.5) * 0.5);
+        g.add(m);
+      }
+      g.position.set(spot.x, FLOOR_Y + 0.4, spot.z);
+      g.rotation.y = rnd() * Math.PI * 2;
+      return g;
+    },
+  });
+  const crystalClusters = crystalClusterItems.map(it => it.mesh);
+
+  // --- в) ore (светящаяся руда в полу) ---
+  const oreGeo = new THREE.OctahedronGeometry(0.12, 0);
+  const oreAccent = theme.accent ?? 0x66e0ff;
+  const oreMat = new THREE.MeshStandardMaterial({
+    color: oreAccent, roughness: 0.4, metalness: 0.5,
+    emissive: new THREE.Color(oreAccent), emissiveIntensity: 0.8,
+  });
+  const oreItems = placeDecor(rnd, usePath, perches, 'ore', null, null, 6, {
+    scene, decor, minR: 4, maxR: 12, clearance: 3.2,
+    create: (spot) => {
+      const g = new THREE.Group();
+      const numOres = 3 + Math.floor(rnd() * 3);
+      for (let o = 0; o < numOres; o++) {
+        const m = new THREE.Mesh(oreGeo, oreMat);
+        const ang = (o / numOres) * Math.PI * 2 + rnd() * 0.4;
+        const rad = 0.1 + rnd() * 0.15;
+        m.position.set(Math.cos(ang) * rad, rnd() * 0.08, Math.sin(ang) * rad);
+        m.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
+        m.scale.setScalar(0.7 + rnd() * 0.6);
+        g.add(m);
+      }
+      g.position.set(spot.x, FLOOR_Y + 0.15, spot.z);
+      g.rotation.y = rnd() * Math.PI * 2;
+      return g;
+    },
+  });
+  const ores = oreItems.map(it => it.mesh);
+
+  // --- г) roots (корни по стенам, статика) ---
+  const rootGeo = new THREE.CylinderGeometry(0.1, 0.06, 2.4, 5);
+  const rootMat = new THREE.MeshStandardMaterial({ color: 0x2a1c12, roughness: 0.95 });
+  const rootItems = placeDecor(rnd, usePath, perches, 'roots', null, null, 6, {
+    scene, decor, minR: 13, maxR: 22, clearance: 6.0, perchClearance: 2.5,
+    create: (spot) => {
+      const g = new THREE.Group();
+      const numRoots = 2 + Math.floor(rnd() * 2);
+      for (let r = 0; r < numRoots; r++) {
+        const m = new THREE.Mesh(rootGeo, rootMat);
+        m.position.set((rnd() - 0.5) * 0.4, 0, (rnd() - 0.5) * 0.4);
+        m.rotation.set((rnd() - 0.5) * 0.5 + 0.35, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.5);
+        m.scale.set(0.8 + rnd() * 0.4, 0.8 + rnd() * 0.5, 0.8 + rnd() * 0.4);
+        g.add(m);
+      }
+      g.position.set(spot.x, 1.5 + rnd() * 2, spot.z);
+      g.rotation.set((rnd() - 0.5) * 0.4, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.4);
+      return g;
+    },
+  });
+  const rootsList = rootItems.map(it => it.mesh);
+
+  // --- д) bone_pile (останки тварей, статика) ---
+  const boneRibGeo = new THREE.TorusGeometry(0.35, 0.06, 4, 7, Math.PI * 0.7);
+  const boneSkullGeo = new THREE.DodecahedronGeometry(0.16, 0);
+  const boneMat = new THREE.MeshStandardMaterial({ color: 0xc2b896, roughness: 0.85 });
+  const bonePileItems = placeDecor(rnd, usePath, perches, 'bone_pile', null, null, 4, {
+    scene, decor, minR: 7.5, maxR: 17, clearance: 4.5, perchClearance: 2.0,
+    create: (spot) => {
+      const g = new THREE.Group();
+      const numRibs = 3 + Math.floor(rnd() * 2);
+      for (let k = 0; k < numRibs; k++) {
+        const rib = new THREE.Mesh(boneRibGeo, boneMat);
+        rib.position.set((k - (numRibs - 1) / 2) * 0.16, 0.1, (rnd() - 0.5) * 0.08);
+        rib.rotation.set(Math.PI / 2 + (rnd() - 0.5) * 0.3, (rnd() - 0.5) * 0.3, (rnd() - 0.5) * 0.3);
+        rib.scale.setScalar(0.85 + rnd() * 0.3);
+        g.add(rib);
+      }
+      const skull = new THREE.Mesh(boneSkullGeo, boneMat);
+      skull.position.set(0.32, 0.1, (rnd() - 0.5) * 0.1);
+      skull.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
+      g.add(skull);
+      g.position.set(spot.x, FLOOR_Y + 0.15, spot.z);
+      g.rotation.y = rnd() * Math.PI * 2;
+      return g;
+    },
+  });
+  const bonePiles = bonePileItems.map(it => it.mesh);
+
+  // --- е) stone_arch (каменная арка на дальнем плане, статика) ---
+  const archTopGeo = new THREE.TorusGeometry(2.2, 0.5, 5, 9, Math.PI);
+  const archPillarGeo = new THREE.CylinderGeometry(0.3, 0.4, 2.2, 6);
+  const stoneArchItems = placeDecor(rnd, usePath, perches, 'stone_arch', null, null, 2, {
+    scene, decor, minR: 15, maxR: 23, clearance: 7.5, perchClearance: 3.0,
+    create: (spot) => {
+      const g = new THREE.Group();
+      const top = new THREE.Mesh(archTopGeo, rockMat);
+      top.position.set(0, 1.1, 0);
+      const left = new THREE.Mesh(archPillarGeo, rockMat);
+      left.position.set(-2.2, 0, 0);
+      const right = new THREE.Mesh(archPillarGeo, rockMat);
+      right.position.set(2.2, 0, 0);
+      g.add(top, left, right);
+      g.position.set(spot.x, FLOOR_Y + 1.1, spot.z);
+      g.rotation.y = rnd() * Math.PI * 2;
+      g.scale.setScalar(0.85 + rnd() * 0.3);
+      return g;
+    },
+  });
+  const stoneArches = stoneArchItems.map(it => it.mesh);
+
+  // --- ж) spore_cloud (дрейфующее споровое облако) ---
+  const sporeAccent = typeof theme.accent === 'string'
+    ? theme.accent
+    : (theme.accent ? `#${theme.accent.toString(16).padStart(6, '0')}` : '#66e0ff');
+  const sporeTex = glowTexture(sporeAccent, 'rgba(200,255,240,0.35)');
+  const sporeMat = new THREE.SpriteMaterial({
+    map: sporeTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.3,
+  });
+  const sporeCloudItems = placeDecor(rnd, usePath, perches, 'spore_cloud', null, null, 5, {
+    scene, decor, minR: 5, maxR: 15, clearance: 3.5,
+    create: (spot, idx) => {
+      const spr = new THREE.Sprite(sporeMat);
+      const y = 1.4 + rnd() * 1.6;
+      spr.position.set(spot.x, y, spot.z);
+      spr.scale.setScalar(1.6 + rnd() * 0.8);
+      spr.userData = { bx: spot.x, bz: spot.z, by: y, phase: idx };
+      return spr;
+    },
+  });
+  const sporeClouds = sporeCloudItems.map(it => it.mesh);
+
   // --- кристалл ---
   const crystalGroup = new THREE.Group();
   crystalGroup.position.copy(CRYSTAL.pos);
@@ -380,9 +599,13 @@ export function buildCave(cfg = null, path = null) {
     crystalGroup, crystalLight: pointLight, outer, inner,
     pool, sparks, torches, torchSprites,
     waterPools, cracks, spires,
+    stalactites, crystalClusters, ores, roots: rootsList, bonePiles, stoneArches, sporeClouds,
     decor,
     walls: blobs,
-    materials: { rockMat, wallGeo },
+    materials: {
+      rockMat, wallGeo, druzeMat, oreMat, rootMat, boneMat, sporeMat,
+      stalactiteGeo, crystalGeo, oreGeo, rootGeo, boneRibGeo, boneSkullGeo, archTopGeo, archPillarGeo,
+    },
   };
 }
 
@@ -416,5 +639,33 @@ export function updateCave(cave, time) {
     cave.cracks.forEach((m, i) => {
       m.material.emissiveIntensity = 0.75 + Math.sin(time * 3 + i * 1.3) * 0.3;
     });
+  }
+  // кристальные гроздья: плавная пульсация свечения
+  if (cave.crystalClusters) {
+    const dMat = cave.materials?.druzeMat ?? cave.crystalClusters[0]?.children?.[0]?.material;
+    if (dMat) {
+      dMat.emissiveIntensity = 0.6 + Math.sin(time * 1.8) * 0.25;
+    }
+  }
+  // светящаяся руда: пульсация интенсивности
+  if (cave.ores) {
+    const oMat = cave.materials?.oreMat ?? cave.ores[0]?.children?.[0]?.material;
+    if (oMat) {
+      oMat.emissiveIntensity = 0.7 + Math.sin(time * 2.0) * 0.35;
+    }
+  }
+  // споровые облака: дрейф по XZ и пульсация прозрачности
+  if (cave.sporeClouds) {
+    cave.sporeClouds.forEach((spr, i) => {
+      const u = spr.userData;
+      if (u) {
+        spr.position.x = u.bx + Math.sin(time * 0.5 + i) * 0.4;
+        spr.position.z = u.bz + Math.cos(time * 0.4 + i * 1.1) * 0.3;
+      }
+    });
+    const sMat = cave.materials?.sporeMat ?? cave.sporeClouds[0]?.material;
+    if (sMat) {
+      sMat.opacity = 0.2 + Math.sin(time * 0.7) * 0.1;
+    }
   }
 }

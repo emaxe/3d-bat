@@ -110,7 +110,13 @@ test('runtime: Enemy и Tower конструируются и обновляют
 test('runtime: декор всех уровней не пересекает путь врагов', async () => {
   const { buildCave } = await import('../src/world/cave.js');
   const { LEVELS, buildLevelPath } = await import('../src/core/layout.js');
-  const minClearance = { boulder: 5.8, stalagmite: 4.2, shroom: 3.0, druze: 2.8, water: 6.4, lava: 6.4, crack: 3.5, spire: 8.0 };
+  const minClearance = {
+    boulder: 5.8, stalagmite: 4.2, shroom: 3.0, druze: 2.8, water: 6.4, lava: 6.4, crack: 3.5, spire: 8.0,
+    stalactite: 4.2, crystal_cluster: 4.8, ore: 3.0, roots: 5.8, bone_pile: 4.0, stone_arch: 7.2, spore_cloud: 3.0,
+  };
+  const minPerchClearance = {
+    crystal_cluster: 2.2, roots: 2.5, bone_pile: 2.0, stone_arch: 3.0,
+  };
   for (const cfg of LEVELS) {
     const path = buildLevelPath(cfg.id);
     const cave = buildCave(cfg, path);
@@ -123,6 +129,14 @@ test('runtime: декор всех уровней не пересекает пу
       }
       const need = minClearance[item.kind] ?? 2.5;
       assert.ok(best >= need - 0.2, `${cfg.name}: ${item.kind} на ${best.toFixed(2)} от пути (нужно ≥${need})`);
+      if (minPerchClearance[item.kind] && cfg.perches) {
+        let bestPerch = Infinity;
+        for (const p of cfg.perches) {
+          bestPerch = Math.min(bestPerch, Math.hypot(p.pos.x - item.x, p.pos.z - item.z));
+        }
+        const perchNeed = minPerchClearance[item.kind];
+        assert.ok(bestPerch >= perchNeed - 0.01, `${cfg.name}: ${item.kind} на ${bestPerch.toFixed(2)} от насеста (нужно ≥${perchNeed})`);
+      }
     }
   }
 });
