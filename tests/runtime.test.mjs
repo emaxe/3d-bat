@@ -88,7 +88,7 @@ test('runtime: Enemy и Tower конструируются и обновляют
   const perches = buildPerches(cave.scene, cave.materials.rockMat);
   const ctx = {
     scene: cave.scene, towers: [], enemies: [], projectiles: [], pulses: [],
-    particles: { spawn() {}, burst() {} },
+    particles: { spawn() {}, burst() {}, ring() {}, directed() {} },
     sfx: { shoot() {}, hit() {}, echo() {}, lantern() {}, explosion() {}, coin() {}, death() {}, click() {}, wave() {}, boss() {} },
     moonSpeedMul: 1, moonRewardMul: 1, moonTowerMul: 1, cloakAll: false,
     damageNumber() {},

@@ -681,6 +681,7 @@ export class Tower {
     this.alive = true;
     this.cooldown = 0;
     this.t = Math.random() * 5;
+    this.recoil = 0; // отдача при выстреле (0..1, затухает в update)
     const st = TOWER_TYPES[typeId];
     this.spent = st.cost;
     this.stats = towerStats(typeId, 1);
@@ -795,6 +796,11 @@ export class Tower {
       w.rotation.x = Math.sin(this.t * flapSpeed) * flapAmp;
     }
     this.mesh.position.y = this.pos.y + 0.35 + Math.sin(this.t * 2.4) * 0.05;
+    // отдача: плавный сдвиг назад по -Z при выстреле
+    if (this.recoil > 0) {
+      this.recoil = Math.max(0, this.recoil - dt * 6);
+      this.mesh.position.z = this.pos.z - this.recoil * 0.12;
+    }
 
     // Анимация деталей по userData-хукам
     const ud = this.mesh.userData;
@@ -1006,9 +1012,16 @@ export class Tower {
       vulnDur: EFFECT_DEFS.vuln.dur,
       chain: this.typeId === 'screamer' && this.isAlpha ? 2 : 0,
       onHit: (proj) => this.onProjectileHit(ctx, proj, target),
+      particles: ctx.particles,
     });
     ctx.projectiles.push(p);
-    ctx.particles.spawn({ x: this.mesh.position.x, y: this.mesh.position.y, z: this.mesh.position.z, vx: 0, vy: 0.4, vz: 0, life: 0.15, size: 0.5, color: def.glow, gravity: 0 });
+    // отдача башни при выстреле
+    this.recoil = 1;
+    // дульная вспышка: сноп искр у дула в цвет башни
+    ctx.particles.burst({
+      x: this.mesh.position.x, y: this.mesh.position.y, z: this.mesh.position.z,
+      count: 4, speed: 1.2, life: 0.16, size: 0.3, color: def.glow, gravity: 0, up: 0.2,
+    });
     if (ctx.sfx) {ctx.sfx.shoot(this.typeId);}
   }
 
@@ -1024,11 +1037,19 @@ export class Tower {
         }
       }
       ctx.particles.burst({ x: proj.pos.x, y: proj.pos.y, z: proj.pos.z, count: 14, speed: 4, life: 0.5, size: 0.4, color: '#ff9a2a', gravity: 1.2 });
+      // ударная волна взрыва по площади
+      ctx.particles.ring({ x: proj.pos.x, y: proj.pos.y, z: proj.pos.z, count: 10, speed: 3.5, life: 0.35, size: 0.3, color: '#ff9a2a' });
       if (ctx.sfx) {ctx.sfx.explosion();}
     } else {
       const real = target.takeDamage(dmg);
       if (real > 0) {ctx.damageNumber(target.pos, Math.round(real), proj.color, target.boss);}
       ctx.particles.burst({ x: target.pos.x, y: target.pos.y, z: target.pos.z, count: 5, speed: 2.5, life: 0.35, size: 0.25, color: proj.color, gravity: 0 });
+      // направленные искры «сквозь» цель по направлению полёта снаряда
+      ctx.particles.directed({
+        x: target.pos.x, y: target.pos.y, z: target.pos.z,
+        dx: proj.dir.x, dy: proj.dir.y, dz: proj.dir.z,
+        count: 4, speed: 3, life: 0.3, size: 0.2, color: proj.color, gravity: 0.5,
+      });
       if (proj.slow > 0) {target.applySlow(proj.slow, proj.slowDur);}
       if (proj.poison > 0) {target.applyPoison(proj.poison, 4);}
       if (proj.vuln > 0) {target.applyVuln(proj.vuln, proj.vulnDur);}

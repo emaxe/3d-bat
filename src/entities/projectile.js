@@ -55,6 +55,11 @@ export class Projectile {
     this.vulnDur = opts.vulnDur || 3;
     this.chain = opts.chain || 0;
     this.chainRange = opts.chainRange || 4;
+    // пул частиц для трейла (опционально — передаётся из tower.fire)
+    this.particles = opts.particles || null;
+    this.trailTimer = 0;
+    // последнее нормализованное направление полёта (для направленных искр при попадании)
+    this.dir = { x: 0, y: 0, z: 0 };
 
     // визуал (разделяемые геометрия + материал по цвету — без per-shot аллокаций)
     const mat = projMaterial(this.color);
@@ -95,6 +100,19 @@ export class Projectile {
     }
     this.pos.add(dir.normalize().multiplyScalar(step));
     this.mesh.position.copy(this.pos);
+    // запоминаем направление полёта (для направленных искр при попадании)
+    this.dir.x = dir.x; this.dir.y = dir.y; this.dir.z = dir.z;
+    // трейл: частицы-хвост за снарядом (через существующий пул, zero-alloc)
+    if (this.particles) {
+      this.trailTimer -= dt;
+      if (this.trailTimer <= 0) {
+        this.trailTimer = 0.04;
+        this.particles.spawn({
+          x: this.pos.x, y: this.pos.y, z: this.pos.z,
+          vx: 0, vy: 0, vz: 0, life: 0.22, size: 0.2, color: this.color, gravity: 0, drag: 1.5,
+        });
+      }
+    }
     // Лёгкий trail: пульсация свечения
     const pulse = 1 + Math.sin(performance.now() * 0.02) * 0.15;
     this.glow.scale.setScalar(RADIUS * 5 * pulse);

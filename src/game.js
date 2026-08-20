@@ -602,19 +602,41 @@ export class Game {
     this.state.addKill();
     const reward = killReward(baseReward, this.state.combo);
     this.state.addEssence(reward);
-    this.sfx.death();
+    this.sfx.death(enemy.boss);
+    const ecolor = ENEMY_TYPES[enemy.typeId].color;
     this.particles.burst({
       x: enemy.pos.x, y: enemy.pos.y, z: enemy.pos.z,
       count: enemy.boss ? 30 : 8, speed: enemy.boss ? 5 : 2.5,
-      life: 0.6, size: enemy.boss ? 0.6 : 0.3, color: ENEMY_TYPES[enemy.typeId].color, gravity: 0,
+      life: 0.6, size: enemy.boss ? 0.6 : 0.3, color: ecolor, gravity: 0,
     });
     // Кольцевая ударная волна при убийстве
     this.particles.ring({
       x: enemy.pos.x, y: enemy.pos.y, z: enemy.pos.z,
       count: enemy.boss ? 24 : 12, speed: enemy.boss ? 4 : 2,
-      life: 0.4, size: 0.25, color: ENEMY_TYPES[enemy.typeId].color,
+      life: 0.4, size: 0.25, color: ecolor,
+    });
+    // Белое ядро вспышки в центре взрыва
+    this.particles.burst({
+      x: enemy.pos.x, y: enemy.pos.y, z: enemy.pos.z,
+      count: enemy.boss ? 10 : 5, speed: enemy.boss ? 2 : 1,
+      life: 0.18, size: enemy.boss ? 0.5 : 0.4, color: '#ffffff', gravity: 0,
+    });
+    // Тип-специфичные осколки: тяжёлые (жук/паук) падают, лёгкие (мотылёк/рой) взлетают
+    const heavy = enemy.typeId === 'beetle' || enemy.typeId === 'spider' || enemy.typeId === 'spiderling';
+    this.particles.directed({
+      x: enemy.pos.x, y: enemy.pos.y, z: enemy.pos.z,
+      dx: 0, dy: heavy ? -1 : 1, dz: 0,
+      count: enemy.boss ? 14 : 6, speed: heavy ? 2.5 : 1.5,
+      life: 0.5, size: heavy ? 0.3 : 0.2, color: ecolor,
+      gravity: heavy ? 2.5 : -0.5,
     });
     this.effects.damageNumber(enemy.pos, `+${reward} ◆`, '#ffe9a0');
+
+    // босс: экранная вспышка + сильная тряска
+    if (enemy.boss) {
+      this.effects.flash('rgba(255,80,80,0.28)');
+      this.effects.addShake(0.55);
+    }
 
     // босс
     if (enemy.boss && this.waves.currentBoss === enemy) this.waves.currentBoss = null;
@@ -658,6 +680,8 @@ export class Game {
     this.effects.addShake(dmg >= 5 ? 0.7 : 0.35);
     this.effects.flash();
     this.particles.burst({ x: enemy.pos.x, y: enemy.pos.y, z: enemy.pos.z, count: 16, speed: 3.5, life: 0.7, size: 0.45, color: '#ff5566', gravity: 0 });
+    // ударная волна от удара по Кристаллу
+    this.particles.ring({ x: enemy.pos.x, y: enemy.pos.y, z: enemy.pos.z, count: 8, speed: 2.5, life: 0.4, size: 0.3, color: '#ff5566' });
     this.effects.damageNumber(enemy.pos, `-${dmg} КР`, '#ff5566', true);
     enemy.dispose();
   }

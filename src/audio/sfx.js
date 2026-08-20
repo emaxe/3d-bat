@@ -72,17 +72,28 @@ export class Sfx {
     const map = { screamer: [900, 500], frost: [1200, 800], spore: [300, 200], fire: [180, 90], vampire: [500, 260] };
     const [f0, f1] = map[type] || [600, 400];
     this._osc('square', f0, f1, 0.07, 0.1);
+    // короткий шумовой щелчок — «выстрел» читается чётче
+    this._noise(0.05, 2500, 0.06, 'highpass');
   }
   hit(type) {
-    if (type === 'frost') {this._osc('sine', 1400, 900, 0.06, 0.1);}
-    else if (type === 'spore') { this._osc('sine', 200, 90, 0.1, 0.12); }
+    if (type === 'frost') {this._osc('sine', 1400, 900, 0.06, 0.1); this._osc('sine', 2100, 1400, 0.05, 0.06);}
+    else if (type === 'spore') { this._osc('sine', 200, 90, 0.1, 0.12); this._noise(0.08, 1200, 0.05, 'highpass'); }
+    else if (type === 'fire') { this._noise(0.12, 900, 0.1, 'lowpass'); this._osc('sine', 150, 60, 0.1, 0.1); }
     else {this._osc('square', 300, 150, 0.05, 0.08);}
   }
-  explosion() { this._noise(0.4, 500, 0.4); this._osc('sine', 120, 40, 0.35, 0.4); }
+  explosion() { this._noise(0.4, 500, 0.4); this._noise(0.3, 120, 0.3, 'lowpass'); this._osc('sine', 120, 40, 0.35, 0.4); }
   echo() { this._osc('sine', 2200, 400, 0.3, 0.15); this._osc('sine', 2400, 500, 0.3, 0.1, 0.05); }
   lantern() { this._osc('sine', 880, 880, 0.4, 0.18); this._osc('sine', 1318, 1318, 0.5, 0.12, 0.08); }
   shriek() { this._osc('sawtooth', 1200, 300, 0.3, 0.14); this._osc('square', 900, 200, 0.25, 0.1); }
-  death() { this._osc('sawtooth', 500, 80, 0.22, 0.14); this._noise(0.15, 800, 0.1); }
+  death(isBoss = false) {
+    this._osc('sawtooth', 500, 80, 0.22, 0.14);
+    this._noise(0.15, 800, 0.1);
+    if (isBoss) {
+      // босс: низкий суб-удар + более длинный спад
+      this._osc('sine', 90, 30, 0.6, 0.4);
+      this._noise(0.5, 300, 0.3, 'lowpass');
+    }
+  }
   wave() { this._osc('triangle', 196, 196, 0.5, 0.25); this._osc('triangle', 294, 294, 0.5, 0.2, 0.1); this._osc('triangle', 392, 392, 0.6, 0.18, 0.2); }
   boss() { this._osc('sawtooth', 90, 45, 0.9, 0.35); this._osc('sawtooth', 96, 48, 0.9, 0.3, 0.05); this._noise(0.8, 250, 0.3); }
   hurt() { this._osc('sine', 200, 60, 0.4, 0.5); this._noise(0.3, 300, 0.3); }
