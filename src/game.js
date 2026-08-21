@@ -826,6 +826,8 @@ export class Game {
       this.hud.el.pause.classList.toggle('on', this.state.paused);
     }
     if (this.state.paused || this.state.over) {
+      // индикатор прогресса волны всё равно скрывается HUD-ом (читает state)
+      this.hud.setWaveProgress(this.waves.spawnIdx, this.waves.spawnQueue.length, this.enemies.length);
       this.renderer.render(this.cave.scene, this.camera);
       return;
     }
@@ -853,6 +855,8 @@ export class Game {
       }
       e.update(dt);
     }
+    // живой индикатор прогресса волны (HUD сам гейтит запись в DOM и видимость)
+    this.hud.setWaveProgress(this.waves.spawnIdx, this.waves.spawnQueue.length, this.enemies.length);
 
     // башни
     for (const t of this.towers) if (t.alive) t.update(dt, this.ctx);

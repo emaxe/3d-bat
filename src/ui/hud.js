@@ -15,6 +15,7 @@ export class Hud {
       level: document.getElementById('hud-level'),
       wave: document.getElementById('hud-wave'),
       wavePreview: document.getElementById('hud-wave-preview'),
+      waveProgress: document.getElementById('hud-wave-progress'),
       next: document.getElementById('btn-next'),
       combo: document.getElementById('hud-combo'),
       moon: document.getElementById('hud-moon'),
@@ -115,6 +116,20 @@ export class Hud {
     this.el.hpFill.style.width = `${(hp / max) * 100}%`;
     this.el.hpText.textContent = `${hp}/${max}`;
     this.el.hpFill.classList.toggle('low', hp / max < 0.3);
+  }
+
+  // Живой прогресс текущей волны: остаток врагов + ход спавна.
+  // Виден только во время активной волны; скрывается между волнами, в паузе и на экранах конца игры.
+  setWaveProgress(spawned, total, alive) {
+    const s = this.state;
+    const show = !s.paused && !s.over && !s.won && total > 0 && (s.spawning || alive > 0);
+    this.el.waveProgress.classList.toggle('show', show);
+    if (!show) { return; }
+    const text = `Врагов осталось: ${alive} · Спавн ${spawned}/${total}`;
+    if (this._wpText !== text) {          // гейт: DOM-запись только при изменении
+      this._wpText = text;
+      this.el.waveProgress.textContent = text;
+    }
   }
 
   setWave(w) {
