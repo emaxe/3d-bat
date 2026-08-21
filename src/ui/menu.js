@@ -2,6 +2,7 @@
 import { STORY_LORE } from '../config/story.js';
 import { getDifficulty } from '../config/difficulty.js';
 import { readSettings, saveSettings, PARTICLE_DENSITY } from '../config/settings.js';
+import { ACHIEVEMENTS } from '../core/achievements.js';
 
 export class Menus {
   constructor(onStart, sfx = null, onAccessChange = null) {
@@ -12,6 +13,8 @@ export class Menus {
     this.overEl = document.getElementById('gameover');
     this.winEl = document.getElementById('win');
     this.storyEl = document.getElementById('story');
+    this.achievementsEl = document.getElementById('achievements');
+    this.achProgressFn = null;
     this.difficulty = this.readDifficulty();
     this.bindDifficultyButtons();
     this.saveDifficulty(this.difficulty);
@@ -39,6 +42,14 @@ export class Menus {
     });
     document.getElementById('btn-story-close')?.addEventListener('click', () => {
       this.storyEl?.classList.remove('show');
+    });
+    document.getElementById('btn-achievements')?.addEventListener('click', () => {
+      this.showAchievements();
+      this.sfx?.click?.();
+    });
+    document.getElementById('btn-achievements-close')?.addEventListener('click', () => {
+      this.achievementsEl?.classList.remove('show');
+      this.sfx?.click?.();
     });
   }
 
@@ -227,5 +238,97 @@ export class Menus {
       }
     }
     wrap.style.display = '';
+  }
+
+  // Задать функцию для вычисления прогресса достижений (вызывается из game.js).
+  setAchievementProgress(fn) {
+    this.achProgressFn = fn;
+  }
+
+  // Чтение сохранённых достижений из localStorage.
+  readAchievements() {
+    try {
+      const data = localStorage.getItem('3dbat.achievements');
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Сохранение состояния достижений в localStorage.
+  saveAchievements(state) {
+    try {
+      localStorage.setItem('3dbat.achievements', JSON.stringify(state));
+    } catch {
+      /* приватный режим */
+    }
+  }
+
+  // Открытие оверлея «Достижения» с отрисовкой актуального прогресса.
+  showAchievements() {
+    const state = this.readAchievements() || { ids: [] };
+    this.renderAchievements(state, this.achProgressFn);
+    this.achievementsEl?.classList.add('show');
+  }
+
+  // Отрисовка сетки карточек достижений и сводки.
+  renderAchievements(state, progressFn = null) {
+    const grid = document.getElementById('achievements-grid');
+    if (!grid) {return;}
+    grid.innerHTML = '';
+
+    const list = ACHIEVEMENTS;
+    const ids = Array.isArray(state?.ids) ? state.ids : (Array.isArray(state) ? state : []);
+    const unlockedSet = new Set(ids);
+    const getProg = progressFn || this.achProgressFn;
+
+    let unlockedCount = 0;
+
+    for (const ach of list) {
+      const prog = getProg?.(ach);
+      const isUnlocked = unlockedSet.has(ach.id) || !!prog?.done;
+      if (isUnlocked) {
+        unlockedCount++;
+      }
+
+      const card = document.createElement('div');
+      card.className = `ach-card ${isUnlocked ? 'unlocked' : 'locked'}`;
+
+      const icon = document.createElement('div');
+      icon.className = 'ach-icon';
+      icon.textContent = ach.icon || '🏆';
+
+      const info = document.createElement('div');
+      info.className = 'ach-info';
+
+      const name = document.createElement('div');
+      name.className = 'ach-name';
+      name.textContent = ach.name;
+
+      const desc = document.createElement('div');
+      desc.className = 'ach-desc';
+      desc.textContent = ach.desc;
+
+      info.append(name, desc);
+
+      if (!isUnlocked && prog && typeof prog.cur === 'number' && typeof prog.target === 'number' && prog.target > 0) {
+        const pct = Math.min(100, Math.max(0, (prog.cur / prog.target) * 100));
+        const progWrap = document.createElement('div');
+        progWrap.className = 'ach-progress';
+        const progFill = document.createElement('div');
+        progFill.className = 'ach-progress-fill';
+        progFill.style.width = `${pct}%`;
+        progWrap.appendChild(progFill);
+        info.appendChild(progWrap);
+      }
+
+      card.append(icon, info);
+      grid.appendChild(card);
+    }
+
+    const summary = document.getElementById('achievements-summary');
+    if (summary) {
+      summary.textContent = `${unlockedCount} / ${list.length} разблокировано`;
+    }
   }
 }

@@ -191,6 +191,18 @@
       animation: toastIn 0.2s ease; max-width: 86vw; text-align: center;
     }
     .toast.out { opacity: 0; transition: opacity 0.35s; }
+    .toast.achievement {
+      border-color: var(--gold);
+      background: rgba(26, 20, 10, 0.92);
+      box-shadow: 0 0 16px rgba(255, 233, 160, 0.3);
+    }
+    .toast-ach-title {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--gold); margin-bottom: 2px; font-weight: 700;
+    }
+    .toast-ach-name {
+      font-size: 14px; font-weight: 800; color: #fff;
+    }
     @keyframes toastIn { from { transform: translateY(-10px); opacity: 0; } }
 
     .upgrade-btn {
@@ -243,6 +255,10 @@
     body.large-text #hud-essence { font-size: 22px; }
     body.large-text .build-card .card-name { font-size: 14px; }
     body.large-text .dmg-num { font-size: 18px; }
+    body.large-text .ach-name { font-size: 15px; }
+    body.large-text .ach-desc { font-size: 13px; }
+    body.large-text .ach-card .ach-icon { font-size: 26px; width: 48px; height: 48px; }
+    body.large-text #achievements-summary { font-size: 16px; }
     .vol-row {
       display: flex; gap: 8px; align-items: center; font-size: 13px;
       background: rgba(255,255,255,0.05);
@@ -277,6 +293,73 @@
     .overlay .stats-extra { flex-wrap: wrap; gap: 14px 22px; font-size: 13px; max-width: 420px; justify-content: center; }
     .overlay .stats-extra b { font-size: 17px; }
 
+    /* ---------- achievements ---------- */
+    .ach-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
+      max-height: 56vh;
+      overflow-y: auto;
+      width: min(580px, 92vw);
+      padding: 4px 4px 8px;
+    }
+    .ach-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      text-align: left;
+      transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+    }
+    .ach-card:hover { transform: translateY(-2px); }
+    .ach-card.unlocked {
+      border-color: rgba(255, 233, 160, 0.45);
+      background: rgba(255, 233, 160, 0.06);
+      box-shadow: 0 0 12px rgba(255, 233, 160, 0.15);
+    }
+    .ach-card.unlocked .ach-name { color: var(--gold); }
+    .ach-card.locked {
+      opacity: 0.55;
+      border-color: rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .ach-card.locked .ach-icon { filter: grayscale(0.8) opacity(0.7); }
+    .ach-card .ach-icon {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--panel-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex: 0 0 auto;
+    }
+    .ach-card.unlocked .ach-icon {
+      border-color: rgba(255, 233, 160, 0.4);
+      background: rgba(255, 233, 160, 0.12);
+    }
+    .ach-info {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column; gap: 3px;
+    }
+    .ach-name {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ach-desc {
+      font-size: 11px; color: var(--muted); line-height: 1.35;
+    }
+    .ach-progress {
+      height: 6px; border-radius: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      overflow: hidden; margin-top: 4px; width: 100%;
+    }
+    .ach-progress-fill {
+      height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, #66e0ff, #ffe9a0);
+      transition: width 0.25s ease;
+    }
+
     @keyframes pulse { 0% { transform: scale(1.4); } 100% { transform: scale(1); } }
     @media (max-width: 720px) {
       #buildbar {
@@ -305,9 +388,10 @@
       #fx-banner { font-size: 24px; }
       .overlay h1 { font-size: 32px; }
       #hud-buttons button { width: 42px; height: 40px; }
+      .ach-grid { grid-template-columns: 1fr; max-height: 52vh; }
     }
   </style>
-  <script type="module" crossorigin src="./assets/index-D7V6oAUW.js"></script>
+  <script type="module" crossorigin src="./assets/index-DWBnTILB.js"></script>
 </head>
 <body>
   <div id="app"></div>
@@ -398,6 +482,7 @@
     </div>
     <button class="btn" id="btn-start">Защитить пещеру</button>
     <button class="btn ghost" id="btn-story">📜 История и лор</button>
+    <button class="btn ghost" id="btn-achievements">🏆 Достижения</button>
   </div>
 
   <div class="overlay" id="story">
@@ -421,6 +506,13 @@
       </div>
     </div>
     <button class="btn" id="btn-story-close">Назад в меню</button>
+  </div>
+
+  <div class="overlay" id="achievements">
+    <h1>🏆 Достижения</h1>
+    <div id="achievements-summary" style="font-size:14px;color:var(--accent);"></div>
+    <div id="achievements-grid" class="ach-grid"></div>
+    <button class="btn" id="btn-achievements-close">Назад в меню</button>
   </div>
 
   <div class="overlay" id="gameover">

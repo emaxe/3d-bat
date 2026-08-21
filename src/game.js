@@ -26,6 +26,7 @@ import { readSettings, PARTICLE_DENSITY } from './config/settings.js';
 import { CameraController } from './managers/cameraController.js';
 import { WaveManager } from './managers/waveManager.js';
 import { BuildSystem } from './managers/buildSystem.js';
+import { ACHIEVEMENTS, checkAchievements, applyRunToLifetime, normalizeUnlocked, achievementProgress } from './core/achievements.js';
 
 export class Game {
   constructor(container) {
@@ -144,12 +145,20 @@ export class Game {
     this.build.panel = this.panel;
     this.waves.hud = this.hud;
     this.hud.el.next.addEventListener('click', () => this.skipDelay());
+
+    // достижения: счётчики забега и пожизненный прогресс
+    this.merges = 0;
+    this.towerTypeCounts = {};
+    this.achState = normalizeUnlocked(this.menus?.readAchievements?.());
+    this.menus?.setAchievementProgress?.((ach) => achievementProgress(ach, this.collectAchievementStats()));
+
     this.state.on('gameover', () => {
       this.sfx.gameover();
       this.music.stop();
       const prev = this.menus?.readProgress?.() || {};
       const stats = this.collectRunStats(prev);
       this.saveProgress();
+      this.registerRunEndInAchievements();
       this.menus.showGameOver(this.levelIndex, this.state.wave, this.kills, stats);
     });
   }
@@ -181,6 +190,8 @@ export class Game {
     this.kills = 0;
     this.bossKills = 0;
     this.towersBuilt = 0;
+    this.merges = 0;
+    this.towerTypeCounts = {};
     this.state.maxCombo = 0;
     this.state.essenceEarned = 0;
     this.state.resetMilestones(); // сброс комбо-милстоунов для нового забега
@@ -277,6 +288,51 @@ export class Game {
     };
   }
 
+  // Собирает снимок статистики текущего забега и пожизненного прогресса для достижений.
+  collectAchievementStats() {
+    return {
+      kills: this.kills,
+      bossKills: this.bossKills,
+      towersBuilt: this.towersBuilt,
+      merges: this.merges,
+      maxCombo: this.state.maxCombo,
+      essenceEarned: this.state.essenceEarned,
+      essence: this.state.essence,
+      wave: this.state.wave,
+      won: this.state.won,
+      endless: this.continuing,
+      towerTypesBuilt: { ...this.towerTypeCounts },
+      lifetime: { ...this.achState.counters },
+      best: { ...this.achState.best },
+    };
+  }
+
+  // Проверяет условия достижений и оповещает через тосты/звук при разблокировке.
+  checkAchievementsNow() {
+    if (!this.running) return;
+    const stats = this.collectAchievementStats();
+    const newOnes = checkAchievements(stats, this.achState.ids);
+    if (!newOnes.length) return;
+    for (const a of newOnes) {
+      this.achState.ids.push(a.id);
+      this.sfx?.achievement?.();
+      this.hud?.showAchievementToast?.(a);
+    }
+    this.menus?.saveAchievements?.(this.achState);
+  }
+
+  // Учитывает завершённый забег в пожизненных счётчиках и лучших результатах.
+  registerRunEndInAchievements() {
+    const stats = this.collectAchievementStats();
+    this.achState.counters = applyRunToLifetime(this.achState.counters, stats);
+    this.achState.best.kills = Math.max(this.achState.best.kills, this.kills);
+    this.achState.best.wave = Math.max(this.achState.best.wave, this.state.wave);
+    this.achState.best.maxCombo = Math.max(this.achState.best.maxCombo, this.state.maxCombo);
+    this.achState.best.essenceEarned = Math.max(this.achState.best.essenceEarned, this.state.essenceEarned);
+    this.checkAchievementsNow();
+    this.menus?.saveAchievements?.(this.achState);
+  }
+
   // Пропустить ожидание между волнами (кнопка «▶ Волну!» / клавиша N).
   skipDelay() {
     if (!this.running || this.state.spawning || this.state.won || this.state.over || this.state.paused) return;
@@ -331,9 +387,12 @@ export class Game {
     const bonus = waveClearReward(this.state.wave);
     this.state.addEssence(bonus);
     this.effects.damageNumber(new THREE.Vector3(0, 2.4, 0), `+${bonus} ◆`, '#ffe9a0', true);
+    this.checkAchievementsNow();
     if (this.state.wave >= TOTAL_WAVES && !this.continuing) {
       // кампания пройдена
       this.state.won = true;
+      this.checkAchievementsNow();
+      this.registerRunEndInAchievements();
       const prev = this.menus?.readProgress?.() || {};
       const stats = this.collectRunStats(prev);
       this.saveProgress();
@@ -356,6 +415,7 @@ export class Game {
 
   // ---------- прогрессия уровней ----------
   levelCleared() {
+    this.checkAchievementsNow();
     this.saveProgress();
     this.state.paused = true;
     this.showUpgradeChoice();
@@ -593,7 +653,12 @@ export class Game {
 
   buildTower(typeId, perch) {
     const tower = this.build.buildTower(typeId, perch, this.cave.scene);
-    if (tower) { this.towers.push(tower); this.towersBuilt++; }
+    if (tower) {
+      this.towers.push(tower);
+      this.towersBuilt++;
+      this.towerTypeCounts[typeId] = (this.towerTypeCounts[typeId] || 0) + 1;
+      this.checkAchievementsNow();
+    }
     this.cancelBuildMode();
   }
 
@@ -610,7 +675,11 @@ export class Game {
   }
 
   mergeTowers(tower, partner) {
-    this.build.mergeTowers(tower, partner, (t) => this.removeTower(t));
+    const ok = this.build.mergeTowers(tower, partner, (t) => this.removeTower(t));
+    if (ok) {
+      this.merges++;
+      this.checkAchievementsNow();
+    }
   }
 
   removeTower(tower) {
@@ -721,6 +790,7 @@ export class Game {
     }
 
     enemy.dispose();
+    this.checkAchievementsNow();
   }
 
   enemyReachedEnd(enemy) {

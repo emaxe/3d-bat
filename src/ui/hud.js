@@ -164,6 +164,34 @@ export class Hud {
       setTimeout(() => t.remove(), 350);
     }, ms);
   }
+
+  // Всплывающее уведомление о разблокированном достижении.
+  showAchievementToast(ach) {
+    if (!ach) {return;}
+    const wrap = document.getElementById('toasts');
+    if (!wrap) {return;}
+    const t = document.createElement('div');
+    t.className = 'toast achievement';
+    t.style.borderColor = '#ffe9a0';
+    t.style.color = '#ffe9a0';
+
+    const header = document.createElement('div');
+    header.className = 'toast-ach-title';
+    header.textContent = '🏆 Достижение разблокировано!';
+
+    const name = document.createElement('div');
+    name.className = 'toast-ach-name';
+    const icon = ach.icon ? `${ach.icon} ` : '';
+    name.textContent = `${icon}${ach.name ?? ''}`;
+
+    t.append(header, name);
+    wrap.appendChild(t);
+
+    setTimeout(() => {
+      t.classList.add('out');
+      setTimeout(() => t.remove(), 350);
+    }, 3500);
+  }
 }
 
 // Строит карточки билд-бара: только разблокированные башни уровня, со скидкой.

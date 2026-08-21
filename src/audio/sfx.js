@@ -139,4 +139,13 @@ export class Sfx {
   hurt() { this._osc('sine', 200, 60, 0.4, 0.5); this._noise(0.3, 300, 0.3); }
   gameover() { [440, 349, 293, 220].forEach((f, i) => this._osc('triangle', f, f * 0.98, 0.5, 0.22, i * 0.22)); }
   win() { [523, 659, 784, 1046, 1318].forEach((f, i) => this._osc('triangle', f, f, 0.4, 0.22, i * 0.12)); }
+  // Торжественная фанфара при получении достижения (восходящее мажорное арпеджио C5-G6 + искрящийся шум).
+  achievement() {
+    const freqs = [523, 659, 784, 1046, 1318, 1568];
+    freqs.forEach((f, i) => {
+      this._osc('triangle', f, f * 1.01, 0.35, 0.2, i * 0.05);
+      this._osc('sine', f * 0.5, f * 0.5, 0.25, 0.12, i * 0.05);
+    });
+    this._noise(0.25, 5000, 0.08, 'highpass', 0.1);
+  }
 }
