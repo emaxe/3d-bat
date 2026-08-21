@@ -216,9 +216,12 @@
     /* ---------- overlays ---------- */
     .overlay {
       position: fixed; inset: 0; display: none; flex-direction: column;
-      align-items: center; justify-content: center; gap: 14px;
+      align-items: center; justify-content: safe center; gap: 14px;
       background: radial-gradient(ellipse at center, rgba(20, 12, 40, 0.88), rgba(5, 3, 12, 0.97));
       z-index: 50; text-align: center; padding: 20px;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      /* safe center: при переполнении контент выравнивается сверху и скроллится,
+         вместо обрезки верха недоступной для прокрутки */
     }
     .overlay.show { display: flex; }
     .overlay h1 {
