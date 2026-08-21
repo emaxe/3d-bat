@@ -14,6 +14,7 @@ export class GameState extends Emitter {
     this.comboTimer = 0;
     this.maxCombo = 0;          // пик комбо за забег (для экрана статистики)
     this.essenceEarned = 0;     // всего заработано эссенции за забег
+    this.comboMilestones = new Set(); // достигнутые пороги комбо за забег (одноразовость)
     this.speed = 1;             // 1|2|3
     this.paused = false;
     this.over = false;
@@ -69,6 +70,23 @@ export class GameState extends Emitter {
     if (this.combo > this.maxCombo) {this.maxCombo = this.combo;}
     this.comboTimer = ECONOMY.comboWindow;
     this.emit('combo', this.combo);
+  }
+
+  // Проверяет достижение нового комбо-милстоуна (5, 10, 15...).
+  // Возвращает число порога (например 5), если достигнут впервые за забег, иначе 0.
+  checkComboMilestone() {
+    const step = ECONOMY.comboMilestoneStep || 5;
+    if (this.combo >= step && this.combo % step === 0 && !this.comboMilestones.has(this.combo)) {
+      this.comboMilestones.add(this.combo);
+      this.emit('comboMilestone', this.combo);
+      return this.combo;
+    }
+    return 0;
+  }
+
+  // Сброс списка милстоунов при перезапуске забега.
+  resetMilestones() {
+    this.comboMilestones.clear();
   }
 
   resetCombo() {

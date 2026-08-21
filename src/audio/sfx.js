@@ -122,6 +122,19 @@ export class Sfx {
     }
   }
   wave() { this._osc('triangle', 196, 196, 0.5, 0.25); this._osc('triangle', 294, 294, 0.5, 0.2, 0.1); this._osc('triangle', 392, 392, 0.6, 0.18, 0.2); }
+  // Торжественный синтезированный перезвон при достижении комбо-порога (высота растёт с уровнем).
+  comboMilestone(combo = 5) {
+    const step = Math.max(1, Math.floor(combo / 5));
+    const pitchMul = Math.pow(1.1, Math.min(step - 1, 8));
+    const freqs = [523, 659, 784, 1046].map(f => f * pitchMul);
+    // Восходящее арпеджио (кристальный перезвон)
+    freqs.forEach((f, i) => {
+      this._osc('sine', f, f * 1.01, 0.22, 0.18, i * 0.045);
+      this._osc('triangle', f * 0.5, f * 0.5, 0.18, 0.1, i * 0.045);
+    });
+    // Высокочастотный искрящийся акцент
+    this._noise(0.18, Math.min(8000, 3500 + step * 400), 0.06, 'highpass', 0.06);
+  }
   boss() { this._osc('sawtooth', 90, 45, 0.9, 0.35); this._osc('sawtooth', 96, 48, 0.9, 0.3, 0.05); this._noise(0.8, 250, 0.3); }
   hurt() { this._osc('sine', 200, 60, 0.4, 0.5); this._noise(0.3, 300, 0.3); }
   gameover() { [440, 349, 293, 220].forEach((f, i) => this._osc('triangle', f, f * 0.98, 0.5, 0.22, i * 0.22)); }

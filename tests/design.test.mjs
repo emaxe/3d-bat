@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LEVELS, CRYSTAL, ENTRANCE, buildLevelPath } from '../src/core/layout.js';
 import { waveSpawns, wavePreview, moonForWave, waveGroups, MOON_PHASES, TOTAL_WAVES } from '../src/core/waves.js';
-import { ECONOMY, sellPrice, killReward, waveClearReward } from '../src/core/economy.js';
+import { ECONOMY, sellPrice, killReward, waveClearReward, comboMilestoneReward } from '../src/core/economy.js';
 import { GameState } from '../src/core/state.js';
 import { UPGRADE_POOL, pickUpgrades } from '../src/core/upgrades.js';
 import { mulberry32 } from '../src/core/rng.js';
@@ -147,6 +147,36 @@ test('статистика забега: essenceEarned копит только �
   assert.equal(s.essenceEarned, 35);
   s.addEssence(-5); // списания не считаются «добыто»
   assert.equal(s.essenceEarned, 35);
+});
+
+test('комбо-милстоуны: бонус растёт с порогом, вне порога — 0', () => {
+  assert.equal(comboMilestoneReward(5), 15);
+  assert.equal(comboMilestoneReward(10), 25);
+  assert.equal(comboMilestoneReward(15), 40);
+  assert.equal(comboMilestoneReward(20), 60);
+  assert.equal(comboMilestoneReward(6), 0);
+  assert.equal(comboMilestoneReward(4), 0);
+  assert.equal(comboMilestoneReward(0), 0);
+});
+
+test('комбо-милстоуны: срабатывают один раз на порог за забег', () => {
+  const s = new GameState();
+  // набиваем комбо до 5
+  for (let i = 0; i < 5; i++) s.addKill();
+  assert.equal(s.checkComboMilestone(), 5, 'порог 5 сработал');
+  assert.equal(s.checkComboMilestone(), 0, 'повторно на том же комбо не срабатывает');
+  // комбо сброшено и снова набито до 5 — повторного бонуса нет
+  s.tickCombo(ECONOMY.comboWindow + 0.1);
+  for (let i = 0; i < 5; i++) s.addKill();
+  assert.equal(s.checkComboMilestone(), 0, 'повторное достижение 5 в том же забеге не даёт бонус');
+  // следующий порог 10 срабатывает
+  for (let i = 0; i < 5; i++) s.addKill();
+  assert.equal(s.checkComboMilestone(), 10, 'порог 10 сработал');
+  // сброс милстоунов позволяет снова
+  s.resetMilestones();
+  s.tickCombo(ECONOMY.comboWindow + 0.1);
+  for (let i = 0; i < 5; i++) s.addKill();
+  assert.equal(s.checkComboMilestone(), 5, 'после resetMilestones порог 5 снова доступен');
 });
 
 test('у всех типов башен есть иконные поля (цвет/свечение)', () => {

@@ -5,7 +5,7 @@ import { buildCave, updateCave } from './world/cave.js';
 import { buildPathVisual } from './world/path.js';
 import { buildPerches } from './world/perches.js';
 import { TOWER_TYPES } from './core/towers.js';
-import { killReward, ECONOMY, waveClearReward } from './core/economy.js';
+import { killReward, ECONOMY, waveClearReward, comboMilestoneReward } from './core/economy.js';
 import { wavePreview, TOTAL_WAVES } from './core/waves.js';
 import { ENEMY_TYPES } from './core/enemies.js';
 import { LEVELS, CRYSTAL, buildLevelPath } from './core/layout.js';
@@ -177,6 +177,7 @@ export class Game {
     this.towersBuilt = 0;
     this.state.maxCombo = 0;
     this.state.essenceEarned = 0;
+    this.state.resetMilestones(); // сброс комбо-милстоунов для нового забега
     this.state.setWave(0);
     this.state.setMoon(null);
     this.state.essence = 0; // buildLevel даст стартовую для уровня 0
@@ -629,6 +630,22 @@ export class Game {
     const reward = killReward(baseReward, this.state.combo);
     this.state.addEssence(reward);
     this.sfx.death(enemy.boss);
+
+    // Комбо-милстоун: одноразовое поощрение за серию убийств (5, 10, 15...).
+    const milestone = this.state.checkComboMilestone();
+    if (milestone > 0) {
+      const bonus = comboMilestoneReward(milestone);
+      this.state.addEssence(bonus);
+      this.sfx.comboMilestone(milestone);
+      this.effects.showBanner(`🔥 Комбо ×${milestone}!`, `+${bonus} ◆ бонус эссенции`, '#ffb347', 2.2);
+      this.hud?.showToast(`🔥 Комбо ×${milestone}: +${bonus} ◆`, '#ffb347', 2400);
+      this.effects.damageNumber(
+        { x: enemy.pos.x, y: enemy.pos.y + 1.2, z: enemy.pos.z },
+        `КОМБО ×${milestone} (+${bonus} ◆)`,
+        '#ffb347',
+        true
+      );
+    }
     const ecolor = ENEMY_TYPES[enemy.typeId].color;
     this.particles.burst({
       x: enemy.pos.x, y: enemy.pos.y, z: enemy.pos.z,

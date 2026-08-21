@@ -123,7 +123,7 @@ export class Hud {
 
   setCombo(c) {
     if (c >= 2) {
-      this.el.combo.textContent = `×${Math.min(c, 9)} КОМБО`;
+      this.el.combo.textContent = `×${c} КОМБО`;
       this.el.combo.classList.add('show');
     } else {
       this.el.combo.classList.remove('show');
