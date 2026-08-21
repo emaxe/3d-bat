@@ -124,7 +124,7 @@ export class Game {
     this.hud = new Hud(this.state, this.sfx);
     this.hud.setLevel(this.levelIndex, this.levelCfg.name);
     buildBuildBar(this.levelCfg.unlockedTowers, this.ctx.buildDiscount, (id, def) => this.enterBuildMode(id, def));
-    this.menus = new Menus((endless, difficulty) => this.startGame(endless, difficulty));
+    this.menus = new Menus((endless, difficulty) => this.startGame(endless, difficulty), this.sfx);
     this.panel = new TowerPanel(this.state, this.sfx, {
       upgrade: (t) => this.upgradeTower(t),
       merge: (t, partner) => this.mergeTowers(t, partner),

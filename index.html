@@ -236,6 +236,17 @@
       color: #fff;
       box-shadow: 0 0 12px rgba(102, 224, 255, 0.3);
     }
+    .vol-row {
+      display: flex; gap: 8px; align-items: center; font-size: 13px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--panel-border); border-radius: 10px;
+      padding: 6px 10px;
+    }
+    .vol-row input[type=range] {
+      width: 130px; accent-color: var(--accent); cursor: pointer;
+      touch-action: pan-x; /* иначе body{touch-action:none} блокирует драг на мобильных */
+    }
+    @media (max-width: 720px) { .vol-row input[type=range] { width: 110px; } }
     .overlay .controls {
       font-size: 12px; color: var(--muted); max-width: 520px; line-height: 1.7;
     }
@@ -354,6 +365,13 @@
         <button class="btn ghost diff-btn" data-diff="hard">🔥 Сложная</button>
       </div>
       <div id="diff-desc" style="font-size:12px;color:var(--text-dim,#8899aa);max-width:420px;text-align:center;">Исходный выверенный баланс кампании</div>
+    </div>
+    <div class="diff-wrap" id="sound-panel" style="display:flex;flex-direction:column;gap:6px;align-items:center;margin:8px 0;">
+      <div style="font-size:12px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;">Звук</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;">
+        <label class="vol-row">🎵 Музыка <input type="range" id="vol-music" min="0" max="100" value="100"></label>
+        <label class="vol-row">🔊 Эффекты <input type="range" id="vol-sfx" min="0" max="100" value="100"></label>
+      </div>
     </div>
     <button class="btn" id="btn-start">Защитить пещеру</button>
     <button class="btn ghost" id="btn-story">📜 История и лор</button>

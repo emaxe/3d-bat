@@ -3,7 +3,12 @@ export class Sfx {
   constructor() {
     this.ctx = null;
     this.master = null;
+    this.sfxBus = null;
+    this.musicBus = null;
     this.muted = false;
+    this.sfxVolume = 1;     // 0..1, раздельная громкость эффектов
+    this.musicVolume = 1;   // 0..1, раздельная громкость музыки
+    this.baseMaster = 0.5;  // базовый множитель мастер-шины (прежний микс)
   }
 
   // Вызывается по первому жесту пользователя.
@@ -11,9 +16,18 @@ export class Sfx {
     if (this.ctx) { if (this.ctx.state === 'suspended') {this.ctx.resume();} return; }
     const Ctx = window.AudioContext || window.webkitAudioContext;
     this.ctx = new Ctx();
+    // Мастер — только гейт «mute» (0/1). Раздельные громкости — на шинах.
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.5;
+    this.master.gain.value = this.muted ? 0 : 1;
     this.master.connect(this.ctx.destination);
+    // Шина эффектов: масштабирует громкость SFX относительно базового микса.
+    this.sfxBus = this.ctx.createGain();
+    this.sfxBus.gain.value = this.sfxVolume * this.baseMaster;
+    this.sfxBus.connect(this.master);
+    // Шина музыки: независимая громкость музыкального канала.
+    this.musicBus = this.ctx.createGain();
+    this.musicBus.gain.value = this.musicVolume * this.baseMaster;
+    this.musicBus.connect(this.master);
     // белый шум
     const len = this.ctx.sampleRate * 1.2;
     const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -24,7 +38,20 @@ export class Sfx {
 
   setMuted(m) {
     this.muted = m;
-    if (this.master) {this.master.gain.value = m ? 0 : 0.5;}
+    if (this.master) {this.master.gain.value = m ? 0 : 1;}
+  }
+
+  // Раздельная громкость эффектов (0..1). До init лишь запоминает число —
+  // init() применит его при создании шины.
+  setSfxVolume(v) {
+    this.sfxVolume = Math.max(0, Math.min(1, v));
+    if (this.sfxBus) {this.sfxBus.gain.value = this.sfxVolume * this.baseMaster;}
+  }
+
+  // Раздельная громкость музыки (0..1).
+  setMusicVolume(v) {
+    this.musicVolume = Math.max(0, Math.min(1, v));
+    if (this.musicBus) {this.musicBus.gain.value = this.musicVolume * this.baseMaster;}
   }
 
   _env(dur, peak = 0.5, attack = 0.005) {
@@ -43,7 +70,7 @@ export class Sfx {
     o.frequency.setValueAtTime(f0, t0);
     if (f1 && f1 !== f0) {o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);}
     const g = this._env(dur, peak);
-    o.connect(g).connect(this.master);
+    o.connect(g).connect(this.sfxBus || this.master);
     o.start(t0);
     o.stop(t0 + dur + 0.05);
   }
@@ -57,7 +84,7 @@ export class Sfx {
     f.type = type;
     f.frequency.value = filterFreq;
     const g = this._env(dur, peak);
-    src.connect(f).connect(g).connect(this.master);
+    src.connect(f).connect(g).connect(this.sfxBus || this.master);
     const t0 = this.ctx.currentTime + delay;
     src.start(t0);
     src.stop(t0 + dur + 0.05);

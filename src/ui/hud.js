@@ -28,6 +28,15 @@ export class Hud {
     };
     this.muted = false;
     this.bind();
+    // восстанавливаем сохранённое глушение из предыдущей сессии
+    try {
+      if (localStorage.getItem('3dbat.muted') === '1') {
+        this.muted = true;
+        this.sfx.setMuted(true);
+        this.el.mute.textContent = '🔇';
+        this.el.mute.classList.add('on');
+      }
+    } catch { /* приватный режим */ }
   }
 
   bind() {
@@ -57,6 +66,7 @@ export class Hud {
       this.muted = !this.muted;
       this.sfx.setMuted(this.muted);
       this.el.mute.textContent = this.muted ? '🔇' : '🔊';
+      try { localStorage.setItem('3dbat.muted', this.muted ? '1' : '0'); } catch { /* приватный режим */ }
     });
     this.setEssence(s.essence);
     this.setHp(s.crystalHp, s.maxHp);

@@ -3,8 +3,9 @@ import { STORY_LORE } from '../config/story.js';
 import { getDifficulty } from '../config/difficulty.js';
 
 export class Menus {
-  constructor(onStart) {
+  constructor(onStart, sfx = null) {
     this.onStart = onStart;
+    this.sfx = sfx;
     this.menuEl = document.getElementById('menu');
     this.overEl = document.getElementById('gameover');
     this.winEl = document.getElementById('win');
@@ -12,6 +13,7 @@ export class Menus {
     this.difficulty = this.readDifficulty();
     this.bindDifficultyButtons();
     this.saveDifficulty(this.difficulty);
+    this.bindSoundPanel();
 
     document.getElementById('btn-start').addEventListener('click', () => {
       this.menuEl.classList.remove('show');
@@ -54,6 +56,49 @@ export class Menus {
     document.querySelectorAll('.diff-btn').forEach(btn => {
       btn.addEventListener('click', () => { this.saveDifficulty(btn.dataset.diff); this.sfx?.click?.(); });
     });
+  }
+
+  // --- Панель настроек звука (раздельные громкости музыки и эффектов) ---
+  readVolumes() {
+    const clamp01 = (v) => (Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1);
+    try {
+      return {
+        music: clamp01(parseFloat(localStorage.getItem('3dbat.vol.music') ?? '1')),
+        sfx: clamp01(parseFloat(localStorage.getItem('3dbat.vol.sfx') ?? '1')),
+      };
+    } catch { return { music: 1, sfx: 1 }; }
+  }
+
+  saveVolumes(music, sfx) {
+    try {
+      localStorage.setItem('3dbat.vol.music', String(music));
+      localStorage.setItem('3dbat.vol.sfx', String(sfx));
+    } catch { /* приватный режим */ }
+  }
+
+  bindSoundPanel() {
+    const musicEl = document.getElementById('vol-music');
+    const sfxEl = document.getElementById('vol-sfx');
+    if (!this.sfx || !musicEl || !sfxEl) return;
+    const vols = this.readVolumes();
+    musicEl.value = String(Math.round(vols.music * 100));
+    sfxEl.value = String(Math.round(vols.sfx * 100));
+    // применяем сохранённые значения (до init шины ещё нет — числа запомнятся)
+    this.sfx.setMusicVolume(vols.music);
+    this.sfx.setSfxVolume(vols.sfx);
+
+    musicEl.addEventListener('input', () => {
+      const v = parseFloat(musicEl.value) / 100;
+      this.sfx.setMusicVolume(v);
+      this.saveVolumes(v, parseFloat(sfxEl.value) / 100);
+    });
+    sfxEl.addEventListener('input', () => {
+      const v = parseFloat(sfxEl.value) / 100;
+      this.sfx.setSfxVolume(v);
+      this.saveVolumes(parseFloat(musicEl.value) / 100, v);
+    });
+    // подтверждающий щелчок при отпускании ползунка эффектов
+    sfxEl.addEventListener('change', () => { this.sfx?.click?.(); });
   }
 
   // Отрисовка и открытие оверлея «История и лор».

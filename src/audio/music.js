@@ -32,7 +32,7 @@ export class Music {
     this.windFilter.frequency.value = 320;
     this.windGain = ctx.createGain();
     this.windGain.gain.value = this.windVol;
-    this.windSrc.connect(this.windFilter).connect(this.windGain).connect(this.sfx.master);
+    this.windSrc.connect(this.windFilter).connect(this.windGain).connect(this.sfx.musicBus || this.sfx.master);
     this.windSrc.start();
     // лёгкое «дыхание» ветра
     this.windLfo = ctx.createOscillator();
@@ -90,7 +90,7 @@ export class Music {
       const hg = ctx.createGain();
       hg.gain.setValueAtTime(0.028, t);
       hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-      h.connect(hf).connect(hg).connect(this.sfx.master);
+      h.connect(hf).connect(hg).connect(this.sfx.musicBus || this.sfx.master);
       h.start(t); h.stop(t + 0.06);
     }
     // пэд на бар
@@ -118,7 +118,7 @@ export class Music {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    node.connect(g).connect(this.sfx.master);
+    node.connect(g).connect(this.sfx.musicBus || this.sfx.master);
     o.start(t);
     o.stop(t + dur + 0.05);
   }
