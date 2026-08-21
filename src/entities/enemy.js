@@ -3,6 +3,7 @@ import * as THREE from 'three';
 
 import { ENEMY_TYPES, scaledHp, scaledReward, effectiveSpeed, damageTaken } from '../core/enemies.js';
 import { CRYSTAL } from '../core/layout.js';
+import { Vec3 } from '../core/math.js';
 import { wingTexture, glowTexture, shadowTexture } from '../world/textures.js';
 
 const wingTexCache = new Map();
@@ -677,6 +678,8 @@ export class Enemy {
 
     // позиция (чистый Vec3 для логики)
     this.pos = path.pointAt(0);
+    this._tgt = new Vec3();
+    this._dir = new Vec3();
 
     // меш
     this.mesh = buildEnemyMesh(typeId, def.color, this.r);
@@ -776,8 +779,8 @@ export class Enemy {
       const d = this.pos.dist(fx.lure.pos);
       if (d < 0.25) { fx.lure.t = 0; }
       if (d > 0.05) {
-        const dir = fx.lure.pos.clone().sub(this.pos).normalize();
-        this.pos.add(dir.scale(this.effSpeed * dt));
+        this._dir.set(fx.lure.pos.x - this.pos.x, fx.lure.pos.y - this.pos.y, fx.lure.pos.z - this.pos.z).normalize();
+        this.pos.add(this._dir.scale(this.effSpeed * dt));
       }
       fx.lure.t -= dt;
       if (fx.lure.t <= 0) {fx.lure = null;}
@@ -801,7 +804,7 @@ export class Enemy {
         this.alive = false;
         return;
       }
-      this.pos = this.path.pointAt(this.progress);
+      this.path.pointAtInto(this.progress, this.pos);
     }
 
     // аура лечения жреца — раз в 0.5 с лечит соседей
@@ -1001,8 +1004,8 @@ export class Enemy {
     }
     // ориентация по движению
     if (!fx.lure) {
-      const tgt = this.path.tangentAt(this.progress);
-      this.mesh.lookAt(this.pos.x + tgt.x, this.pos.y + tgt.y, this.pos.z + tgt.z);
+      this.path.tangentAtInto(this.progress, this._tgt);
+      this.mesh.lookAt(this.pos.x + this._tgt.x, this.pos.y + this._tgt.y, this.pos.z + this._tgt.z);
     }
     // мерцание невидимки
     if (this.cloaked && !fx.revealed) {

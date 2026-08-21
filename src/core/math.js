@@ -64,6 +64,10 @@ export function catmullRom(points, samplesPerSegment = 24) {
   return samples;
 }
 
+// Вспомогательные скретч-векторы для расчёта касательных без per-frame аллокаций
+const _ta = new Vec3();
+const _tb = new Vec3();
+
 // Путь с прогрессом по дистанции (равномерная скорость вдоль кривой).
 export class Path {
   constructor(points, samplesPerSegment = 24) {
@@ -76,22 +80,30 @@ export class Path {
       this.cum[i] = this.length;
     }
   }
-  pointAt(dist) {
+  // вычисление точки пути с записью в переданный вектор out
+  pointAtInto(dist, out) {
     const s = this.samples;
     const c = this.cum;
-    if (dist <= 0) {return s[0].clone();}
-    if (dist >= this.length) {return s[s.length - 1].clone();}
+    if (dist <= 0) { return out.copy(s[0]); }
+    if (dist >= this.length) { return out.copy(s[s.length - 1]); }
     let lo = 0, hi = s.length - 1;
-    while (lo < hi - 1) { const mid = (lo + hi) >> 1; if (c[mid] <= dist) {lo = mid;} else {hi = mid;} }
+    while (lo < hi - 1) { const mid = (lo + hi) >> 1; if (c[mid] <= dist) { lo = mid; } else { hi = mid; } }
     const segLen = c[hi] - c[lo];
     const t = segLen > 1e-9 ? (dist - c[lo]) / segLen : 0;
-    return s[lo].clone().lerp(s[hi], t);
+    return out.copy(s[lo]).lerp(s[hi], t);
+  }
+  pointAt(dist) {
+    return this.pointAtInto(dist, new Vec3());
+  }
+  // касательная (направление движения) в точке с записью в переданный вектор out
+  tangentAtInto(dist, out) {
+    this.pointAtInto(Math.max(0, dist - 0.2), _ta);
+    this.pointAtInto(Math.min(this.length, dist + 0.2), _tb);
+    return out.copy(_tb).sub(_ta).normalize();
   }
   // касательная (направление движения) в точке
   tangentAt(dist) {
-    const a = this.pointAt(Math.max(0, dist - 0.2));
-    const b = this.pointAt(Math.min(this.length, dist + 0.2));
-    return b.sub(a).normalize();
+    return this.tangentAtInto(dist, new Vec3());
   }
   // ближайшая точка кривой к заданной позиции (грубый перебор по выборке)
   nearest(pos, step = 1.2) {

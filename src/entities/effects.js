@@ -1,5 +1,8 @@
-// Визуальные эффекты поверх 3D: всплывающий урон (DOM), баннеры, тряска камеры, вспышка.
 import * as THREE from 'three';
+
+// Вспомогательные векторы для устранения per-frame аллокаций
+const _pv = new THREE.Vector3();
+const _off = new THREE.Vector3();
 
 export class Effects {
   constructor(camera, renderer) {
@@ -38,15 +41,17 @@ export class Effects {
 
   damageNumber(pos3, text, color = '#ffffff', big = false) {
     const p = this.dmgPool.find(p => !p.active) ?? this.dmgPool[0];
-    const v = pos3.project
-      ? pos3.clone().project(this.camera)
-      : new THREE.Vector3(pos3.x, pos3.y, pos3.z).project(this.camera);
+    if (pos3.isVector3 || pos3 instanceof THREE.Vector3) {
+      _pv.copy(pos3).project(this.camera);
+    } else {
+      _pv.set(pos3.x, pos3.y, pos3.z).project(this.camera);
+    }
     const w = this.renderer.domElement.clientWidth, h = this.renderer.domElement.clientHeight;
     p.active = true;
     p.t = 0;
     p.life = big ? 1.1 : 0.8;
-    p.x = (v.x * 0.5 + 0.5) * w;
-    p.y = (-v.y * 0.5 + 0.5) * h;
+    p.x = (_pv.x * 0.5 + 0.5) * w;
+    p.y = (-_pv.y * 0.5 + 0.5) * h;
     p.vy = 42;
     p.el.textContent = text;
     p.el.style.color = color;
@@ -82,6 +87,6 @@ export class Effects {
   shakeOffset() {
     if (this.shake <= 0) {return null;}
     const a = this.shake * 0.35;
-    return new THREE.Vector3((Math.random() - 0.5) * a, (Math.random() - 0.5) * a, 0);
+    return _off.set((Math.random() - 0.5) * a, (Math.random() - 0.5) * a, 0);
   }
 }

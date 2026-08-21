@@ -612,28 +612,32 @@ export function updateCave(cave, time) {
   cave.inner.rotation.y = time * 0.3;
   cave.inner.rotation.x = Math.sin(time * 0.4) * 0.3;
   if (cave.torches) {
-    cave.torches.forEach((l, i) => {
+    for (let i = 0; i < cave.torches.length; i++) {
+      const l = cave.torches[i];
       l.intensity = 230 + Math.sin(time * 7 + i * 1.7) * 45 + Math.sin(time * 13.1 + i * 2.9) * 25;
-    });
+    }
   }
   if (cave.torchSprites) {
-    cave.torchSprites.forEach((spr, i) => {
+    for (let i = 0; i < cave.torchSprites.length; i++) {
+      const spr = cave.torchSprites[i];
       const k = 1 + Math.sin(time * 7 + i * 1.7) * 0.06;
       spr.scale.setScalar(1.1 * k);
-    });
+    }
   }
   // вода/лава: лёгкая рябь прозрачности и свечения
   if (cave.waterPools) {
-    cave.waterPools.forEach((m, i) => {
+    for (let i = 0; i < cave.waterPools.length; i++) {
+      const m = cave.waterPools[i];
       m.material.opacity = 0.8 + Math.sin(time * 1.3 + i * 2.1) * 0.08;
       m.material.emissiveIntensity = 0.25 + Math.sin(time * 1.7 + i) * 0.12;
-    });
+    }
   }
   // лавовые трещины: пульс раскалённости
   if (cave.cracks) {
-    cave.cracks.forEach((m, i) => {
+    for (let i = 0; i < cave.cracks.length; i++) {
+      const m = cave.cracks[i];
       m.material.emissiveIntensity = 0.75 + Math.sin(time * 3 + i * 1.3) * 0.3;
-    });
+    }
   }
   // кристальные гроздья: плавная пульсация свечения
   if (cave.crystalClusters) {
@@ -651,13 +655,14 @@ export function updateCave(cave, time) {
   }
   // споровые облака: дрейф по XZ и пульсация прозрачности
   if (cave.sporeClouds) {
-    cave.sporeClouds.forEach((spr, i) => {
+    for (let i = 0; i < cave.sporeClouds.length; i++) {
+      const spr = cave.sporeClouds[i];
       const u = spr.userData;
       if (u) {
         spr.position.x = u.bx + Math.sin(time * 0.5 + i) * 0.4;
         spr.position.z = u.bz + Math.cos(time * 0.4 + i * 1.1) * 0.3;
       }
-    });
+    }
     const sMat = cave.materials?.sporeMat ?? cave.sporeClouds[0]?.material;
     if (sMat) {
       sMat.opacity = 0.2 + Math.sin(time * 0.7) * 0.1;

@@ -817,10 +817,11 @@ export class Tower {
       ud.horn.rotation.x = Math.sin(this.t * 3.5) * 0.08;
     }
     if (ud.membranes && ud.membranes.length > 0) {
-      ud.membranes.forEach((m, i) => {
+      for (let i = 0; i < ud.membranes.length; i++) {
+        const m = ud.membranes[i];
         const trem = 1 + Math.sin(this.t * 18 + i * Math.PI) * 0.12;
         m.scale.set(trem, trem, 1);
-      });
+      }
     }
     if (ud.hornGlow) {
       const hornBreath = 0.28 * (1 + Math.sin(this.t * 3.5) * 0.2);
@@ -828,14 +829,16 @@ export class Tower {
       ud.hornGlow.material.opacity = 0.45 + Math.sin(this.t * 7) * 0.2;
     }
     if (ud.spinRings && ud.spinRings.length > 0) {
-      ud.spinRings.forEach((r, i) => {
+      for (let i = 0; i < ud.spinRings.length; i++) {
+        const r = ud.spinRings[i];
         r.rotation.z += dt * (i % 2 === 0 ? 1 : -1) * 1.8;
-      });
+      }
     }
     if (ud.crystals && ud.crystals.length > 0) {
-      ud.crystals.forEach((c, i) => {
+      for (let i = 0; i < ud.crystals.length; i++) {
+        const c = ud.crystals[i];
         c.rotation.y = Math.sin(this.t * 2 + i) * 0.15;
-      });
+      }
     }
     if (ud.frostBreath) {
       ud.frostBreath.material.opacity = 0.12 + 0.1 * Math.sin(this.t * 1.5);
@@ -846,14 +849,15 @@ export class Tower {
       ud.cap.scale.set(breath, 1 + Math.sin(this.t * 3 + 1) * 0.08, breath);
     }
     if (ud.sporeMotes && ud.sporeMotes.length > 0) {
-      ud.sporeMotes.forEach((m, i) => {
+      for (let i = 0; i < ud.sporeMotes.length; i++) {
+        const m = ud.sporeMotes[i];
         const a = this.t * 0.6 + i;
         m.position.set(
           Math.cos(a) * 0.22,
           0.28 + Math.sin(this.t * 1.5 + i * 2) * 0.04,
           0.02 + Math.sin(a) * 0.22
         );
-      });
+      }
     }
     if (ud.gem) {
       ud.gem.rotation.y += dt * 1.2;
@@ -866,7 +870,8 @@ export class Tower {
       ud.gemGlow.material.opacity = 0.4 + Math.sin(this.t * 4) * 0.18;
     }
     if (ud.echoRunes && ud.echoRunes.length > 0) {
-      ud.echoRunes.forEach((r, i) => {
+      for (let i = 0; i < ud.echoRunes.length; i++) {
+        const r = ud.echoRunes[i];
         const a = -this.t * 1.4 + (i / 4) * Math.PI * 2;
         r.position.set(
           Math.cos(a) * 0.17,
@@ -875,13 +880,14 @@ export class Tower {
         );
         r.rotation.x += dt * 1.5;
         r.rotation.y += dt * 2.0;
-      });
+      }
     }
     if (ud.flames && ud.flames.length > 0) {
-      ud.flames.forEach((f, i) => {
+      for (let i = 0; i < ud.flames.length; i++) {
+        const f = ud.flames[i];
         f.scale.y = (1.2 + (i % 2) * 0.3) * (1 + Math.sin(this.t * 10 + i * 1.5) * 0.22);
         f.scale.x = 0.9 * (1 + Math.cos(this.t * 8 + i) * 0.12);
-      });
+      }
     }
     if (ud.coalGlow) {
       const coalPulse = 0.32 + Math.sin(this.t * 5) * 0.05;
@@ -889,7 +895,8 @@ export class Tower {
       ud.coalGlow.material.opacity = 0.45 + Math.sin(this.t * 6) * 0.18;
     }
     if (ud.embers && ud.embers.length > 0) {
-      ud.embers.forEach((spk, i) => {
+      for (let i = 0; i < ud.embers.length; i++) {
+        const spk = ud.embers[i];
         const phase = ((this.t * 0.8 + i / 3) % 1);
         const bx = spk.userData.baseX ?? (i - 1) * 0.07;
         spk.position.set(
@@ -899,7 +906,7 @@ export class Tower {
         );
         spk.material.opacity = (1 - phase) * 0.8;
         spk.scale.setScalar(0.06 + (1 - phase) * 0.04);
-      });
+      }
     }
     if (ud.lantern) {
       ud.lantern.rotation.z = Math.sin(this.t * 2.2) * 0.12;
@@ -908,7 +915,9 @@ export class Tower {
     if (ud.beam) {
       ud.beam.material.opacity = 0.10 + 0.05 * Math.sin(this.t * 2);
       if (ud.beam.userData?.motes) {
-        ud.beam.userData.motes.forEach((m, i) => {
+        const motes = ud.beam.userData.motes;
+        for (let i = 0; i < motes.length; i++) {
+          const m = motes[i];
           const progress = ((this.t * 0.35 + i * 0.5) % 1);
           m.position.set(
             Math.sin(this.t * 1.2 + i * 2) * 0.04,
@@ -916,15 +925,16 @@ export class Tower {
             0.30 + progress * 0.25
           );
           m.material.opacity = Math.sin(progress * Math.PI) * 0.35;
-        });
+        }
       }
     }
     if (ud.orbitOrbs && ud.orbitOrbs.length > 0) {
       const len = ud.orbitOrbs.length;
-      ud.orbitOrbs.forEach((o, i) => {
+      for (let i = 0; i < len; i++) {
+        const o = ud.orbitOrbs[i];
         const a = this.t * 2.2 + (i / len) * Math.PI * 2;
         o.position.set(Math.cos(a) * 0.18, 0.32 + Math.sin(this.t * 3 + i) * 0.04, Math.sin(a) * 0.18);
-      });
+      }
     }
     if (ud.collar) {
       ud.collar.rotation.z = Math.sin(this.t * 1.8) * 0.04;
