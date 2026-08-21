@@ -230,12 +230,19 @@
       background: rgba(255,255,255,0.06); border: 1px solid var(--panel-border);
       box-shadow: none; color: var(--text); font-weight: 600; font-size: 14px;
     }
-    .overlay .btn.ghost.active, .diff-btn.active {
+    .overlay .btn.ghost.active, .diff-btn.active, .acc-btn.active, .acc-part.active {
       border-color: var(--accent);
       background: rgba(102, 224, 255, 0.22);
       color: #fff;
       box-shadow: 0 0 12px rgba(102, 224, 255, 0.3);
     }
+    /* Крупный текст интерфейса (настройка доступности) */
+    body.large-text .overlay { font-size: 17px; }
+    body.large-text .overlay h1 { font-size: 34px; }
+    body.large-text .overlay .btn { font-size: 16px; }
+    body.large-text #hud-essence { font-size: 22px; }
+    body.large-text .build-card .card-name { font-size: 14px; }
+    body.large-text .dmg-num { font-size: 18px; }
     .vol-row {
       display: flex; gap: 8px; align-items: center; font-size: 13px;
       background: rgba(255,255,255,0.05);
@@ -300,7 +307,7 @@
       #hud-buttons button { width: 42px; height: 40px; }
     }
   </style>
-  <script type="module" crossorigin src="./assets/index-BP6CxzcZ.js"></script>
+  <script type="module" crossorigin src="./assets/index-D7V6oAUW.js"></script>
 </head>
 <body>
   <div id="app"></div>
@@ -374,6 +381,19 @@
       <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;">
         <label class="vol-row">🎵 Музыка <input type="range" id="vol-music" min="0" max="100" value="100"></label>
         <label class="vol-row">🔊 Эффекты <input type="range" id="vol-sfx" min="0" max="100" value="100"></label>
+      </div>
+    </div>
+    <div class="diff-wrap" id="access-panel" style="display:flex;flex-direction:column;gap:6px;align-items:center;margin:8px 0;">
+      <div style="font-size:12px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;">Доступность</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+        <button class="btn ghost acc-btn" data-acc="shake">🎥 Тряска камеры</button>
+        <button class="btn ghost acc-btn" data-acc="largeText">🔠 Крупный текст</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;">
+        <span style="font-size:12px;color:var(--muted);">✨ Частицы:</span>
+        <button class="btn ghost acc-part" data-part="low">Низко</button>
+        <button class="btn ghost acc-part" data-part="normal">Средне</button>
+        <button class="btn ghost acc-part" data-part="high">Много</button>
       </div>
     </div>
     <button class="btn" id="btn-start">Защитить пещеру</button>

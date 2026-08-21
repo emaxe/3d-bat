@@ -1,11 +1,13 @@
 // Меню: старт, поражение, победа (endless), прогресс кампании, история/лор.
 import { STORY_LORE } from '../config/story.js';
 import { getDifficulty } from '../config/difficulty.js';
+import { readSettings, saveSettings, PARTICLE_DENSITY } from '../config/settings.js';
 
 export class Menus {
-  constructor(onStart, sfx = null) {
+  constructor(onStart, sfx = null, onAccessChange = null) {
     this.onStart = onStart;
     this.sfx = sfx;
+    this.onAccessChange = onAccessChange;
     this.menuEl = document.getElementById('menu');
     this.overEl = document.getElementById('gameover');
     this.winEl = document.getElementById('win');
@@ -14,6 +16,7 @@ export class Menus {
     this.bindDifficultyButtons();
     this.saveDifficulty(this.difficulty);
     this.bindSoundPanel();
+    this.bindAccessPanel();
 
     document.getElementById('btn-start').addEventListener('click', () => {
       this.menuEl.classList.remove('show');
@@ -99,6 +102,43 @@ export class Menus {
     });
     // подтверждающий щелчок при отпускании ползунка эффектов
     sfxEl.addEventListener('change', () => { this.sfx?.click?.(); });
+  }
+
+  // --- Панель настроек доступности (тряска, частицы, крупный текст) ---
+  bindAccessPanel() {
+    this.access = readSettings();
+    this.applyAccessUI();
+    document.querySelectorAll('.acc-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.acc;
+        this.access[key] = !this.access[key];
+        saveSettings(this.access);
+        this.applyAccessUI();
+        this.onAccessChange?.(this.access);
+        this.sfx?.click?.();
+      });
+    });
+    document.querySelectorAll('.acc-part').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.access.particles = btn.dataset.part;
+        saveSettings(this.access);
+        this.applyAccessUI();
+        this.onAccessChange?.(this.access);
+        this.sfx?.click?.();
+      });
+    });
+  }
+
+  // Отражает текущие настройки доступности в кнопках и body.large-text.
+  applyAccessUI() {
+    document.querySelectorAll('.acc-btn').forEach(btn => {
+      const key = btn.dataset.acc;
+      btn.classList.toggle('active', !!this.access[key]);
+    });
+    document.querySelectorAll('.acc-part').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.part === this.access.particles);
+    });
+    document.body.classList.toggle('large-text', !!this.access.largeText);
   }
 
   // Отрисовка и открытие оверлея «История и лор».

@@ -31,6 +31,7 @@ const MAX = 500;
 
 export class ParticleSystem {
   constructor(scene) {
+    this.density = 1.0; // множитель плотности (настройка доступности)
     this.pool = [];
     this.live = 0;
     this.geo = new THREE.BufferGeometry();
@@ -75,7 +76,7 @@ export class ParticleSystem {
   }
 
   burst(o) {
-    const count = o.count ?? 8;
+    const count = Math.max(1, Math.round((o.count ?? 8) * this.density));
     for (let i = 0; i < count; i++) {
       const ang = Math.random() * Math.PI * 2;
       const up = (Math.random() - 0.5) * (o.spreadY ?? 1);
@@ -94,7 +95,7 @@ export class ParticleSystem {
 
   // Кольцевой взрыв (ударная волна): частицы разлетаются кольцом в XZ.
   ring(o) {
-    const count = o.count ?? 16;
+    const count = Math.max(1, Math.round((o.count ?? 16) * this.density));
     const speed = o.speed ?? 3;
     for (let i = 0; i < count; i++) {
       const ang = (i / count) * Math.PI * 2;
@@ -112,7 +113,7 @@ export class ParticleSystem {
 
   // Направленный взрыв (в сторону от точки): для попаданий снарядов.
   directed(o) {
-    const count = o.count ?? 6;
+    const count = Math.max(1, Math.round((o.count ?? 6) * this.density));
     for (let i = 0; i < count; i++) {
       const spread = (Math.random() - 0.5) * 1.5;
       const speed = (o.speed ?? 3) * (0.5 + Math.random() * 0.5);

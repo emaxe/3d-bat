@@ -22,6 +22,7 @@ import { Menus } from './ui/menu.js';
 import { TowerPanel } from './ui/towerpanel.js';
 import { cachedTextures } from './world/textures.js';
 import { getDifficulty } from './config/difficulty.js';
+import { readSettings, PARTICLE_DENSITY } from './config/settings.js';
 import { CameraController } from './managers/cameraController.js';
 import { WaveManager } from './managers/waveManager.js';
 import { BuildSystem } from './managers/buildSystem.js';
@@ -95,6 +96,7 @@ export class Game {
 
     // прогрессия кампании
     this.difficulty = getDifficulty();
+    this.access = readSettings(); // настройки доступности (тряска, частицы, крупный текст)
     this.levelIndex = 0;
     this.levelCfg = LEVELS[0];
     this.essenceBonus = 0;
@@ -126,7 +128,11 @@ export class Game {
     this.hud = new Hud(this.state, this.sfx);
     this.hud.setLevel(this.levelIndex, this.levelCfg.name);
     buildBuildBar(this.levelCfg.unlockedTowers, this.ctx.buildDiscount, (id, def) => this.enterBuildMode(id, def));
-    this.menus = new Menus((endless, difficulty) => this.startGame(endless, difficulty), this.sfx);
+    this.menus = new Menus((endless, difficulty) => this.startGame(endless, difficulty), this.sfx, (acc) => {
+      // живое применение настроек доступности
+      this.access = acc;
+      if (this.particles) this.particles.density = PARTICLE_DENSITY[acc.particles] ?? 1.0;
+    });
     this.panel = new TowerPanel(this.state, this.sfx, {
       upgrade: (t) => this.upgradeTower(t),
       merge: (t, partner) => this.mergeTowers(t, partner),
@@ -203,6 +209,7 @@ export class Game {
     this.pathVis = buildPathVisual(this.cave.scene, cfg);
     this.perches = buildPerches(this.cave.scene, this.cave.materials.rockMat, cfg);
     this.particles = new ParticleSystem(this.cave.scene);
+    this.particles.density = PARTICLE_DENSITY[this.access.particles] ?? 1.0;
     this.build.particles = this.particles;
     this.build.setScene(this.cave.scene);
     if (this.ctx) { this.ctx.scene = this.cave.scene; this.ctx.particles = this.particles; }
@@ -802,9 +809,11 @@ export class Game {
       this.waves.currentBoss = null;
     }
 
-    // тряска камеры
-    const off = this.effects.shakeOffset();
-    if (off) this.camera.position.add(off);
+    // тряска камеры (отключается в настройках доступности)
+    if (this.access.shake) {
+      const off = this.effects.shakeOffset();
+      if (off) this.camera.position.add(off);
+    }
 
     this.renderer.render(this.cave.scene, this.camera);
   }
