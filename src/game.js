@@ -79,6 +79,8 @@ export class Game {
     this.pulses = [];
     this.gameTime = 0;
     this.kills = 0;
+    this.bossKills = 0;
+    this.towersBuilt = 0;
     this.continuing = false;
     this.running = false;
     this.raycaster = new THREE.Raycaster();
@@ -139,8 +141,10 @@ export class Game {
     this.state.on('gameover', () => {
       this.sfx.gameover();
       this.music.stop();
+      const prev = this.menus?.readProgress?.() || {};
+      const stats = this.collectRunStats(prev);
       this.saveProgress();
-      this.menus.showGameOver(this.levelIndex, this.state.wave, this.kills);
+      this.menus.showGameOver(this.levelIndex, this.state.wave, this.kills, stats);
     });
   }
 
@@ -169,6 +173,10 @@ export class Game {
     this.ctx.buildDiscount = 0;
     this.continuing = false;
     this.kills = 0;
+    this.bossKills = 0;
+    this.towersBuilt = 0;
+    this.state.maxCombo = 0;
+    this.state.essenceEarned = 0;
     this.state.setWave(0);
     this.state.setMoon(null);
     this.state.essence = 0; // buildLevel даст стартовую для уровня 0
@@ -246,6 +254,21 @@ export class Game {
     });
   }
 
+  // Сводка за забег для экранов конца игры. Рекорды сравниваем с прогрессом
+  // ДО saveProgress(), иначе saveProgress перезапишет старый лучший результат
+  // и условие «новый рекорд» никогда не сработает.
+  collectRunStats(prev = {}) {
+    return {
+      maxCombo: this.state.maxCombo,
+      bosses: this.bossKills,
+      essenceEarned: this.state.essenceEarned,
+      towersBuilt: this.towersBuilt,
+      newBestWave: this.state.wave > (prev.bestWave ?? 0),
+      newBestKills: this.kills > (prev.kills ?? 0),
+      won: this.state.won,
+    };
+  }
+
   // Пропустить ожидание между волнами (кнопка «▶ Волну!» / клавиша N).
   skipDelay() {
     if (!this.running || this.state.spawning || this.state.won || this.state.over || this.state.paused) return;
@@ -303,10 +326,12 @@ export class Game {
     if (this.state.wave >= TOTAL_WAVES && !this.continuing) {
       // кампания пройдена
       this.state.won = true;
+      const prev = this.menus?.readProgress?.() || {};
+      const stats = this.collectRunStats(prev);
       this.saveProgress();
       this.sfx.win();
       this.music.stop();
-      this.menus.showWin(this.state.wave, this.kills);
+      this.menus.showWin(this.state.wave, this.kills, stats);
       return;
     }
     // границы уровней: волна 4 = конец ур.1, волна 7 = конец ур.2
@@ -560,7 +585,7 @@ export class Game {
 
   buildTower(typeId, perch) {
     const tower = this.build.buildTower(typeId, perch, this.cave.scene);
-    if (tower) this.towers.push(tower);
+    if (tower) { this.towers.push(tower); this.towersBuilt++; }
     this.cancelBuildMode();
   }
 
@@ -600,6 +625,7 @@ export class Game {
   onKill(enemy, baseReward) {
     this.kills++;
     this.state.addKill();
+    if (enemy.boss) this.bossKills++;
     const reward = killReward(baseReward, this.state.combo);
     this.state.addEssence(reward);
     this.sfx.death(enemy.boss);

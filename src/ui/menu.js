@@ -153,16 +153,39 @@ export class Menus {
     } catch { /* приватный режим — не критично */ }
   }
 
-  showGameOver(levelIdx, wave, score) {
+  showGameOver(levelIdx, wave, score, stats = null) {
     document.getElementById('go-level').textContent = String(levelIdx + 1);
     document.getElementById('go-wave').textContent = String(wave);
     document.getElementById('go-score').textContent = String(score);
+    this.renderRunStats('go', stats);
     this.overEl.classList.add('show');
   }
 
-  showWin(wave, score) {
+  showWin(wave, score, stats = null) {
     document.getElementById('win-wave').textContent = String(wave);
     document.getElementById('win-score').textContent = String(score);
+    this.renderRunStats('win', stats);
     this.winEl.classList.add('show');
+  }
+
+  // Заполняет блок детальной статистики забега; без stats — скрывает его.
+  renderRunStats(prefix, stats) {
+    const wrap = document.getElementById(`${prefix}-stats`);
+    if (!wrap) {return;}
+    if (!stats) { wrap.style.display = 'none'; return; }
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+    set(`${prefix}-combo`, stats.maxCombo);
+    set(`${prefix}-bosses`, stats.bosses);
+    set(`${prefix}-essence`, stats.essenceEarned);
+    set(`${prefix}-towers`, stats.towersBuilt);
+    const best = document.getElementById(`${prefix}-best`);
+    if (best) {
+      const rec = stats.newBestWave || stats.newBestKills;
+      best.style.display = rec ? '' : 'none';
+      if (rec) {
+        best.textContent = stats.newBestWave ? '🏆 Новый рекорд: волна!' : '🏆 Новый рекорд: убийства!';
+      }
+    }
+    wrap.style.display = '';
   }
 }

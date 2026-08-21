@@ -12,6 +12,8 @@ export class GameState extends Emitter {
     this.moon = null;           // активная фаза луны
     this.combo = 0;
     this.comboTimer = 0;
+    this.maxCombo = 0;          // пик комбо за забег (для экрана статистики)
+    this.essenceEarned = 0;     // всего заработано эссенции за забег
     this.speed = 1;             // 1|2|3
     this.paused = false;
     this.over = false;
@@ -30,6 +32,7 @@ export class GameState extends Emitter {
 
   addEssence(amount) {
     this.essence += amount;
+    if (amount > 0) {this.essenceEarned += amount;}
     this.emit('essence', this.essence);
   }
 
@@ -63,6 +66,7 @@ export class GameState extends Emitter {
 
   addKill() {
     this.combo = Math.min(this.combo + 1, 99);
+    if (this.combo > this.maxCombo) {this.maxCombo = this.combo;}
     this.comboTimer = ECONOMY.comboWindow;
     this.emit('combo', this.combo);
   }

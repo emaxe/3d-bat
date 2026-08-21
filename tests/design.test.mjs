@@ -126,6 +126,29 @@ test('комбо: сбрасывается по таймеру', () => {
   assert.equal(s.combo, 0);
 });
 
+test('статистика забега: maxCombo растёт и не сбрасывается таймером', () => {
+  const s = new GameState();
+  s.addKill();
+  s.addKill();
+  s.addKill();
+  assert.equal(s.maxCombo, 3);
+  // комбо сброшено, но пик за забег сохраняется
+  s.tickCombo(ECONOMY.comboWindow + 0.1);
+  assert.equal(s.combo, 0);
+  assert.equal(s.maxCombo, 3);
+  s.addKill();
+  assert.equal(s.maxCombo, 3); // не превысило прежний пик
+});
+
+test('статистика забега: essenceEarned копит только положительные начисления', () => {
+  const s = new GameState();
+  s.addEssence(10);
+  s.addEssence(25);
+  assert.equal(s.essenceEarned, 35);
+  s.addEssence(-5); // списания не считаются «добыто»
+  assert.equal(s.essenceEarned, 35);
+});
+
 test('у всех типов башен есть иконные поля (цвет/свечение)', () => {
   for (const id of Object.keys(TOWER_TYPES)) {
     const t = TOWER_TYPES[id];
