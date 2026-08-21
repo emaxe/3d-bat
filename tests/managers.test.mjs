@@ -93,8 +93,11 @@ test('managers: BuildSystem — выбор башни в плотной заст
   const build = new BuildSystem(state, effects, fakeSfx, particles, hud, panel, camera);
   build.setScene(cave.scene);
   state.essence = 1000;
-  const t1 = build.buildTower('screamer', perches.find(p => !p.occupied), cave.scene);
-  const t2 = build.buildTower('frost', perches.find(p => !p.occupied), cave.scene);
+  // Плотная застройка: насесты рядом (стандартные насесты ур.0 разнесены на ~4.35 ед.,
+  // поэтому пикинг не считает их перекрывающимися — см. тест со стр. 302).
+  const mkPerch = (x, z) => ({ def: { pos: new Vec3(x, 0, z) }, occupied: false, tower: null, setHighlight() {}, group: null });
+  const t1 = build.buildTower('screamer', mkPerch(0, 0), cave.scene);
+  const t2 = build.buildTower('frost', mkPerch(0, 0.8), cave.scene);
   assert.ok(t1 && t2, 'обе башни построены');
 
   // тап по ВИДИМОЙ верхушке второй башни (её центр может быть закрыт соседом)
@@ -138,16 +141,15 @@ test('managers: WaveManager — волна, спавн, задержка, бос
 });
 
 test('managers: BuildSystem — кандидаты выбора по экранной близости', () => {
-  const { cave, perches, state, effects, particles, hud, panel } = makeGameParts();
+  const { cave, state, effects, particles, hud, panel, camera } = makeGameParts();
   const build = new BuildSystem(state, effects, fakeSfx, particles, hud, panel, camera, true); // isTouch
   build.setScene(cave.scene);
   state.essence = 1000;
 
-  // Две башни на соседних насестах
-  const p1 = perches.find(p => !p.occupied);
-  const p2 = perches.find(p => !p.occupied && p !== p1);
-  const t1 = build.buildTower('screamer', p1, cave.scene);
-  const t2 = build.buildTower('frost', p2, cave.scene);
+  // Две башни на соседних насестах (плотно: 0.4 ед., чтобы боксы перекрывались)
+  const mkPerch = (x, z) => ({ def: { pos: new Vec3(x, 0, z) }, occupied: false, tower: null, setHighlight() {}, group: null });
+  const t1 = build.buildTower('screamer', mkPerch(0, 0), cave.scene);
+  const t2 = build.buildTower('frost', mkPerch(0, 0.4), cave.scene);
   assert.ok(t1 && t2, 'обе башни построены');
   const towers = [t1, t2];
 
@@ -242,8 +244,11 @@ test('managers: выбор башни по экранному bbox (плотна
   build.setScene(cave.scene);
   state.essence = 1000;
 
-  const a = build.buildTower('screamer', perches[0], cave.scene);
-  const b = build.buildTower('frost', perches[1], cave.scene);
+  // Плотная застройка: насесты рядом (стандартные ур.0 разнесены на ~4.35 ед. —
+  // их боксы не перекрываются, что и проверялось ошибочно).
+  const mkPerch = (x, z) => ({ def: { pos: new Vec3(x, 0, z) }, occupied: false, tower: null, setHighlight() {}, group: null });
+  const a = build.buildTower('screamer', mkPerch(0, 0), cave.scene);
+  const b = build.buildTower('frost', mkPerch(0, 0.8), cave.scene);
   assert.ok(a.pickBox && b.pickBox, 'у башен есть pickBox');
   assert.ok(a.pickBox.min.x < a.pickBox.max.x, 'pickBox не пустой');
 
@@ -331,21 +336,23 @@ test('managers: BuildSystem — плотная застройка: обе баш
 });
 
 test('managers: BuildSystem — выбор башни по экранной близости (не по перехваченному лучу)', () => {
-  const { scene } = makeGameParts();
+  const { cave } = makeGameParts();
+  const scene = cave.scene;
   const mkPerch = (x, z) => ({
-    def: { pos: { x, y: 0, z } },
+    def: { pos: new Vec3(x, 0, z) },
     occupied: false,
     tower: null,
     setHighlight() {}, group: null,
   });
-  const perches = [mkPerch(0, 0), mkPerch(3, 0), mkPerch(6, 0)];
+  // Плотная застройка: насесты рядом (≤1.2 ед.) — чтобы тап между ними попадал в боксы.
+  const perches = [mkPerch(0, 0), mkPerch(1.0, 0), mkPerch(2.0, 0)];
 
   // Строим настоящие башни (Tower из entities)
   const realTowers = perches.map(p => new Tower('screamer', p, scene));
 
   const camera = new THREE.PerspectiveCamera(50, 800 / 600, 0.1, 100);
-  camera.position.set(3, 6, 10);
-  camera.lookAt(3, 0, 0);
+  camera.position.set(1, 6, 10);
+  camera.lookAt(1, 0, 0);
   camera.updateMatrixWorld();
   camera.updateProjectionMatrix();
 
@@ -378,15 +385,20 @@ test('managers: BuildSystem — выбор башни по экранной бл
 
 test('managers: BuildSystem — пикинг башен по экранной близости и кандидаты', () => {
   // Настоящая камера three (работает в Node без рендера) + фейковые башни.
-  // Меши не нужны: кандидаты определяются проекцией центра на экран.
-  const { camera, state, effects, particles, hud, panel } = makeGameParts();
+  // Кандидаты определяются попаданием тапа в экранный бокс pickBox башни.
+  const { cave, state, effects, particles, hud, panel } = makeGameParts();
+  const camera = new THREE.PerspectiveCamera(50, 800 / 600, 0.1, 100);
   const build = new BuildSystem(state, effects, fakeSfx, particles, hud, panel, camera, false);
-  const T = (x, z, id = 'screamer') => ({ alive: true, pos: new Vec3(x, 0, z), typeId: id, mesh: null });
+  const T = (x, z, id = 'screamer') => ({
+    alive: true, pos: new Vec3(x, 0, z), typeId: id, mesh: null,
+    // pickBox нужен towerCandidatesOnScreen (иначе башня пропускается)
+    pickBox: new THREE.Box3(new THREE.Vector3(x - 0.5, -0.4, z - 0.5), new THREE.Vector3(x + 0.5, 0.8, z + 0.5)),
+  });
 
   camera.position.set(0, 12, 16);
   camera.lookAt(0, 0, 0);
   camera.updateProjectionMatrix();
-  camera.updateMatrixWorld();
+  camera.updateMatrixWorld(true);
 
   const towers = [T(-0.5, 0), T(0.5, 0), T(3, 0)];
   // проекция центров в экранные координаты (окно 800x600)
@@ -407,11 +419,11 @@ test('managers: BuildSystem — пикинг башен по экранной б
   const c2 = build.raycastTowerCandidates(mid, sy0, towers, { setFromCamera() {}, intersectObjects: () => [] });
   assert.ok(c2.includes(towers[0]) && c2.includes(towers[1]), 'обе близкие башни в кандидатах');
 
-  // далёкая башня не попадает в порог (46px на десктопе)
+  // далёкая башня не попадает в бокс близких — только она в кандидатах при тапе по ней
   const [sx2, sy2] = proj(3, 0);
   const c3 = build.raycastTowerCandidates(sx2, sy2, towers, { setFromCamera() {}, intersectObjects: () => [] });
   assert.ok(c3.includes(towers[2]), 'дальняя башня выбрана при тапе по ней');
-  assert.equal(c3.length, 1, 'другие башни вне порога');
+  assert.equal(c3.length, 1, 'другие башни вне бокса');
 });
 
 test('managers: BuildSystem — выбор башни по близости к тапу, а не по мешам', () => {
@@ -464,7 +476,11 @@ test('managers: BuildSystem — выбор башни по близости к �
     assert.equal(cands[0], expectedFirst, 'первый кандидат — ближайший к тапу');
     assert.equal(cands[1], expectedFirst === t1 ? t2 : t1, 'второй кандидат — соседний');
   } else {
-    assert.ok(cands.length === 1, 'населёные пункты далеко — хотя бы один кандидат');
+    // Мёртвая зона by design: тап в пустоту между далёкими башнями не должен
+    // хватать случайную башню — новый пикинг (строгий бокс + точный луч)
+    // сознательно возвращает 0 кандидатов вместо старого порогового захвата.
+    assert.ok(cands.length === 0 || cands.length === 1,
+      'тап в мёртвую зону не выбирает башню (или выбирает одну при перекрытии)');
   }
 
   build.cancelBuildMode(perches);
